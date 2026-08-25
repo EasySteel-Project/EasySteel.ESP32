@@ -1,0 +1,53 @@
+name: Bug report
+description: Report a reproducible firmware, protocol, or documented hardware issue.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include credentials, private IP addresses, or device identifiers. Security issues must be reported privately as described in SECURITY.md.
+  - type: input
+    id: firmware-version
+    attributes:
+      label: Firmware version or commit
+      placeholder: v0.1.0 or abc1234
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Round lifecycle or scoring
+        - Sensor or button input
+        - Display, LEDs, or buzzer
+        - Wi-Fi, provisioning, or OTA
+        - TCP protocol or result delivery
+        - Hardware documentation
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: Describe the smallest repeatable sequence.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Board type, hardware revision, target count, round mode, and relevant non-sensitive configuration.

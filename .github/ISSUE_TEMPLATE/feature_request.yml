@@ -1,0 +1,29 @@
+name: Feature request
+description: Propose a focused improvement to the firmware, documentation, or reference hardware.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      placeholder: What practical problem does this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+    validations:
+      required: true
+  - type: textarea
+    id: authority
+    attributes:
+      label: Device authority impact
+      description: Explain why the proposal does not let a desktop or network peer override the device-owned round lifecycle.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

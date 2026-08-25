@@ -1,0 +1,775 @@
+#include "menu.h"
+#include "round_controller.h"
+#include "button.h"
+#include "buzzer.h"
+#include "display.h"
+#include "network.h"
+#include "storage.h"
+#include "strings.h"
+#include "leds.h"
+#include "sensor_isr.h"
+#include <WiFi.h>
+
+static Button* btnStart = nullptr;
+static Button* btnStop = nullptr;
+static Button* btnReset = nullptr;
+
+enum MenuState
+{
+  MENU_STATE_MAIN_CAT,
+  MENU_STATE_TARGET_MENU,
+  MENU_STATE_TARGET_COUNT_EDIT,
+  MENU_STATE_STOP_MODE_EDIT,
+  MENU_STATE_SCREENSAVER_EDIT,
+  MENU_STATE_NET_MENU,
+  MENU_STATE_WIFI_RESET_CONFIRM,
+  MENU_STATE_TEST_MENU,
+  MENU_STATE_TEST_SENSORS,
+  MENU_STATE_TEST_LEDS_BUZZER,
+  MENU_STATE_INFO
+};
+
+static bool menuActive = false;
+static MenuState currentState = MENU_STATE_MAIN_CAT;
+
+// Selection indices
+static int mainCatIndex = 0;       // 0..4
+static int targetSubIndex = 0;     // 0..3
+static int netItemIndex = 0;       // 0..11
+static int testSelectIndex = 0;    // 0..2
+
+static int configuredTargetCount = MAX_TARGETS;
+static bool configuredRequireAllTargets = false;
+static int configuredRoundMode = 0;
+static int configuredScreensaverTimeout = 5;
+
+
+// Test execution variables
+static unsigned long testTimer = 0;
+static int testStep = 0;
+static int lastHitTargetIndex = -1;
+static bool sensorMatrixHits[MAX_TARGETS] = {false};
+static unsigned long resetPressStartTime = 0;
+static bool resetWasHeldLong = false;
+
+static constexpr unsigned long HOLD_LONG_PRESS_MS = 1000;
+static constexpr int MAIN_CAT_COUNT = 5;
+static constexpr int TARGET_SUB_COUNT = 4;
+static constexpr int NET_ITEM_COUNT = 12;
+static constexpr int TEST_SELECT_COUNT = 3;
+
+
+void menuInit(HwButtons& buttons)
+{
+  btnStart = &buttons.start;
+  btnStop = &buttons.stop;
+  btnReset = &buttons.reset;
+}
+
+void menuEnter(unsigned long currentMillis)
+{
+  menuActive = true;
+  currentState = MENU_STATE_MAIN_CAT;
+  mainCatIndex = 0;
+  targetSubIndex = 0;
+  netItemIndex = 0;
+  testSelectIndex = 0;
+  buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+}
+
+int menuGetTargetCount()
+{
+  return configuredTargetCount;
+}
+
+void menuSetTargetCount(int count)
+{
+  configuredTargetCount = count;
+}
+
+bool menuGetRequireAllTargets()
+{
+  return configuredRoundMode == 1;
+}
+
+void menuSetRequireAllTargets(bool requireAll)
+{
+  configuredRequireAllTargets = requireAll;
+  configuredRoundMode = requireAll ? 1 : 0;
+}
+
+int menuGetRoundMode()
+{
+  return configuredRoundMode;
+}
+
+void menuSetRoundMode(int mode)
+{
+  configuredRoundMode = mode;
+  configuredRequireAllTargets = (mode == 1);
+}
+
+
+int menuGetScreensaverTimeout()
+{
+  return configuredScreensaverTimeout;
+}
+
+void menuSetScreensaverTimeout(int minutes)
+{
+  configuredScreensaverTimeout = minutes;
+}
+
+
+static void stopRunningTest()
+{
+  ledsReset();
+  sensorIsrSetTestMode(false);
+  sensorIsrDisable();
+  sensorIsrSetRunning(false);
+  lastHitTargetIndex = -1;
+  for (int i = 0; i < MAX_TARGETS; i++)
+  {
+    sensorMatrixHits[i] = false;
+  }
+}
+
+static void menuUpdateDisplay()
+{
+  switch (currentState)
+  {
+  case MENU_STATE_MAIN_CAT:
+  {
+    const char *mainItems[MAIN_CAT_COUNT] = {
+      STR_CAT_TARGETS,
+      STR_CAT_NETWORK,
+      STR_CAT_TEST,
+      STR_CAT_INFO,
+      STR_CAT_EXIT
+    };
+    char title[24];
+    snprintf(title, sizeof(title), "HAUPTMENUE (%d/%d)", mainCatIndex + 1, MAIN_CAT_COUNT);
+    displayUpdateMenuList(title, mainItems, MAIN_CAT_COUNT, mainCatIndex, STR_FOOTER_NAV);
+    break;
+  }
+
+  case MENU_STATE_TARGET_MENU:
+  {
+    const char *targetItems[TARGET_SUB_COUNT] = {
+      "1. " STR_TARGET_COUNT,
+      "2. " STR_STOP_MODE,
+      "3. " STR_SCREENSAVER,
+      STR_BACK
+    };
+    char title[24];
+    snprintf(title, sizeof(title), "SPIEL & ZIELE (%d/%d)", targetSubIndex + 1, TARGET_SUB_COUNT);
+    displayUpdateMenuList(title, targetItems, TARGET_SUB_COUNT, targetSubIndex, STR_FOOTER_NAV);
+    break;
+  }
+
+  case MENU_STATE_TARGET_COUNT_EDIT:
+  {
+    char valStr[16];
+    snprintf(valStr, sizeof(valStr), "[ %d ]", configuredTargetCount);
+    displayUpdateValueEdit("ZIELANZAHL", "Anzahl Ziele (1..5):", valStr, nullptr, STR_FOOTER_EDIT);
+    break;
+  }
+
+  case MENU_STATE_STOP_MODE_EDIT:
+  {
+    const char *modeStr = (configuredRoundMode == 2) ? STR_MODE_REACTION : ((configuredRoundMode == 1) ? STR_MODE_ALL_TARGETS : STR_MODE_COMPETITION);
+    displayUpdateValueEdit("SPIEL-MODUS", "Modus:", modeStr, "WK / Alle / Reaktion", STR_FOOTER_NAV);
+    break;
+  }
+
+
+  case MENU_STATE_SCREENSAVER_EDIT:
+  {
+    char valStr[16];
+    if (configuredScreensaverTimeout == 0)
+    {
+      snprintf(valStr, sizeof(valStr), "[ %s ]", STR_TIMEOUT_OFF);
+    }
+    else
+    {
+      snprintf(valStr, sizeof(valStr), "[ %d Min ]", configuredScreensaverTimeout);
+    }
+    displayUpdateValueEdit("BILDSCHIRMSCHONER", "Auto-Standby:", valStr, "Aus/2/5/15/30 Min", STR_FOOTER_NAV);
+    break;
+  }
+
+
+  case MENU_STATE_NET_MENU:
+  {
+    char lineStatus[24];
+    if (networkIsProvisioning())
+    {
+      snprintf(lineStatus, sizeof(lineStatus), "Status: %s", STR_STATUS_AP);
+    }
+    else if (networkIsWiFiConnected())
+    {
+      snprintf(lineStatus, sizeof(lineStatus), "Status: %s", STR_STATUS_CONNECTED);
+    }
+    else
+    {
+      snprintf(lineStatus, sizeof(lineStatus), "Status: %s", STR_STATUS_DISCONNECTED);
+    }
+
+    char lineSsid[24];
+    String ssid = networkGetSSID();
+    snprintf(lineSsid, sizeof(lineSsid), "SSID: %.14s", ssid.c_str());
+
+    char lineIp[24];
+    String ip = networkGetLocalIP();
+    snprintf(lineIp, sizeof(lineIp), "IP: %.16s", ip.c_str());
+
+    char lineServer[24];
+    String serverIp = networkGetServerIP();
+    snprintf(lineServer, sizeof(lineServer), "Server: %.12s", serverIp.c_str());
+
+    char linePort[24];
+    uint16_t port = networkGetTCPPort();
+    snprintf(linePort, sizeof(linePort), "Port: %u", port);
+
+    char lineName[24];
+    String name = networkGetDeviceName();
+    snprintf(lineName, sizeof(lineName), "Name: %.14s", name.c_str());
+
+    char lineId[24];
+    String id = networkGetDeviceID();
+    snprintf(lineId, sizeof(lineId), "ID: %.16s", id.c_str());
+
+    char lineConnect[24];
+    snprintf(lineConnect, sizeof(lineConnect), "> %s", STR_ACTION_WIFI_CONNECT);
+
+    char lineAp[24];
+    snprintf(lineAp, sizeof(lineAp), "> %s", STR_ACTION_AP_MODE);
+
+    char lineWps[24];
+    snprintf(lineWps, sizeof(lineWps), "> %s", STR_ACTION_WPS);
+
+    char lineReset[24];
+    snprintf(lineReset, sizeof(lineReset), "> %s", STR_ACTION_WIFI_RESET);
+
+    const char *netItems[NET_ITEM_COUNT] = {
+      lineStatus,
+      lineSsid,
+      lineIp,
+      lineServer,
+      linePort,
+      lineName,
+      lineId,
+      lineConnect,
+      lineAp,
+      lineWps,
+      lineReset,
+      STR_BACK
+    };
+
+    char title[24];
+    snprintf(title, sizeof(title), "NETZWERK (%d/%d)", netItemIndex + 1, NET_ITEM_COUNT);
+    const char *footer = (netItemIndex >= 7 && netItemIndex <= 10) ? "^:St v:Sp Run:Rs" : STR_FOOTER_NAV;
+    displayUpdateMenuList(title, netItems, NET_ITEM_COUNT, netItemIndex, footer);
+    break;
+  }
+
+  case MENU_STATE_WIFI_RESET_CONFIRM:
+    displayUpdateConfirmation(STR_CONFIRM_WIFI_TITLE, STR_CONFIRM_WIFI_LINE1, STR_CONFIRM_WIFI_LINE2, STR_FOOTER_CONFIRM);
+    break;
+
+  case MENU_STATE_TEST_MENU:
+  {
+    const char *testItems[TEST_SELECT_COUNT] = {
+      "1. " STR_TEST_SENSORS,
+      "2. " STR_TEST_LEDS_BUZZER,
+      STR_BACK
+    };
+    char title[24];
+    snprintf(title, sizeof(title), "TESTS (%d/%d)", testSelectIndex + 1, TEST_SELECT_COUNT);
+    displayUpdateMenuList(title, testItems, TEST_SELECT_COUNT, testSelectIndex, STR_FOOTER_NAV);
+    break;
+  }
+
+  case MENU_STATE_TEST_SENSORS:
+    displayUpdateSensorMatrix(sensorMatrixHits, lastHitTargetIndex);
+    break;
+
+  case MENU_STATE_TEST_LEDS_BUZZER:
+    displayUpdateValueEdit("LED & BUZZER", "Blinker aktiv...", "Start/Stop=Ton", nullptr, STR_FOOTER_BACK);
+    break;
+
+  case MENU_STATE_INFO:
+  {
+    unsigned long uptimeSec = millis() / 1000;
+    displayUpdateDeviceInfo(STR_FIRMWARE_VER, networkGetDeviceName().c_str(), networkGetLocalIP().c_str(), WiFi.macAddress().c_str(), uptimeSec);
+    break;
+  }
+  }
+}
+
+bool menuTick(unsigned long currentMillis)
+{
+  if (!menuActive)
+    return false;
+
+  bool startPressed = btnStart->wasPressed();
+  bool stopPressed = btnStop->wasPressed();
+
+  // Handle RESET button long press vs short press on release
+  bool resetShortPress = false;
+  bool resetLongPress = false;
+
+  if (btnReset->wasPressed())
+  {
+    resetPressStartTime = currentMillis;
+    resetWasHeldLong = false;
+  }
+
+  if (btnReset->isHeldFor(HOLD_LONG_PRESS_MS, currentMillis) && !resetWasHeldLong)
+  {
+    resetWasHeldLong = true;
+    resetLongPress = true;
+    buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+  }
+
+  if (btnReset->wasReleased())
+  {
+    if (!resetWasHeldLong)
+    {
+      resetShortPress = true;
+    }
+  }
+
+  bool displayNeedsUpdate = false;
+
+  // --- Long Press Navigation (Back / Parent Menu / Exit) ---
+  if (resetLongPress)
+  {
+    if (currentState == MENU_STATE_TEST_SENSORS || currentState == MENU_STATE_TEST_LEDS_BUZZER)
+    {
+      stopRunningTest();
+      currentState = MENU_STATE_TEST_MENU;
+      displayNeedsUpdate = true;
+    }
+    else if (currentState == MENU_STATE_TARGET_COUNT_EDIT ||
+             currentState == MENU_STATE_STOP_MODE_EDIT ||
+             currentState == MENU_STATE_SCREENSAVER_EDIT)
+    {
+      currentState = MENU_STATE_TARGET_MENU;
+      displayNeedsUpdate = true;
+    }
+    else if (currentState == MENU_STATE_TARGET_MENU ||
+             currentState == MENU_STATE_NET_MENU ||
+             currentState == MENU_STATE_TEST_MENU ||
+             currentState == MENU_STATE_INFO)
+    {
+      currentState = MENU_STATE_MAIN_CAT;
+      displayNeedsUpdate = true;
+    }
+    else if (currentState == MENU_STATE_WIFI_RESET_CONFIRM)
+    {
+      currentState = MENU_STATE_NET_MENU;
+      displayNeedsUpdate = true;
+    }
+    else if (currentState == MENU_STATE_MAIN_CAT)
+    {
+      // Exit menu and persist all settings
+      storageSaveTargetCount(configuredTargetCount);
+      storageSaveRoundMode(configuredRoundMode);
+      storageSaveRequireAllTargets(configuredRoundMode == 1);
+      storageSaveScreensaverTimeout(configuredScreensaverTimeout);
+      roundControllerSetScreensaverTimeout(configuredScreensaverTimeout);
+      buzzerPlay(BuzzerPattern::Start, currentMillis);
+      menuActive = false;
+      networkSendEvent("settings_changed", -1, 0);
+      return false;
+    }
+  }
+
+  // --- State Machine ---
+  if (!resetLongPress)
+  {
+    switch (currentState)
+    {
+    case MENU_STATE_MAIN_CAT:
+      if (startPressed)
+      {
+        mainCatIndex = (mainCatIndex - 1 + MAIN_CAT_COUNT) % MAIN_CAT_COUNT;
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        displayNeedsUpdate = true;
+      }
+      if (stopPressed)
+      {
+        mainCatIndex = (mainCatIndex + 1) % MAIN_CAT_COUNT;
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        displayNeedsUpdate = true;
+      }
+      if (resetShortPress)
+      {
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        switch (mainCatIndex)
+        {
+        case 0: currentState = MENU_STATE_TARGET_MENU; targetSubIndex = 0; break;
+        case 1: currentState = MENU_STATE_NET_MENU; netItemIndex = 0; break;
+        case 2: currentState = MENU_STATE_TEST_MENU; testSelectIndex = 0; break;
+        case 3: currentState = MENU_STATE_INFO; break;
+        case 4:
+          // Exit menu and persist all settings
+          storageSaveTargetCount(configuredTargetCount);
+          storageSaveRoundMode(configuredRoundMode);
+          storageSaveRequireAllTargets(configuredRoundMode == 1);
+          storageSaveScreensaverTimeout(configuredScreensaverTimeout);
+          roundControllerSetScreensaverTimeout(configuredScreensaverTimeout);
+          buzzerPlay(BuzzerPattern::Start, currentMillis);
+          menuActive = false;
+          networkSendEvent("settings_changed", -1, 0);
+          return false;
+        }
+        displayNeedsUpdate = true;
+      }
+      break;
+
+    case MENU_STATE_TARGET_MENU:
+      if (startPressed)
+      {
+        targetSubIndex = (targetSubIndex - 1 + TARGET_SUB_COUNT) % TARGET_SUB_COUNT;
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        displayNeedsUpdate = true;
+      }
+      if (stopPressed)
+      {
+        targetSubIndex = (targetSubIndex + 1) % TARGET_SUB_COUNT;
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        displayNeedsUpdate = true;
+      }
+      if (resetShortPress)
+      {
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        switch (targetSubIndex)
+        {
+        case 0: currentState = MENU_STATE_TARGET_COUNT_EDIT; break;
+        case 1: currentState = MENU_STATE_STOP_MODE_EDIT; break;
+        case 2: currentState = MENU_STATE_SCREENSAVER_EDIT; break;
+        case 3: currentState = MENU_STATE_MAIN_CAT; break;
+        }
+        displayNeedsUpdate = true;
+      }
+      break;
+
+    case MENU_STATE_TARGET_COUNT_EDIT:
+      if (startPressed && configuredTargetCount < MAX_TARGETS)
+      {
+        configuredTargetCount++;
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        displayNeedsUpdate = true;
+      }
+      if (stopPressed && configuredTargetCount > 1)
+      {
+        configuredTargetCount--;
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        displayNeedsUpdate = true;
+      }
+      if (resetShortPress)
+      {
+        storageSaveTargetCount(configuredTargetCount);
+        buzzerPlay(BuzzerPattern::Start, currentMillis);
+        currentState = MENU_STATE_TARGET_MENU;
+        displayNeedsUpdate = true;
+      }
+      break;
+
+    case MENU_STATE_STOP_MODE_EDIT:
+      if (startPressed)
+      {
+        configuredRoundMode = (configuredRoundMode + 1) % 3;
+        configuredRequireAllTargets = (configuredRoundMode == 1);
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        displayNeedsUpdate = true;
+      }
+      if (stopPressed)
+      {
+        configuredRoundMode = (configuredRoundMode - 1 + 3) % 3;
+        configuredRequireAllTargets = (configuredRoundMode == 1);
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        displayNeedsUpdate = true;
+      }
+      if (resetShortPress)
+      {
+        storageSaveRoundMode(configuredRoundMode);
+        storageSaveRequireAllTargets(configuredRoundMode == 1);
+        buzzerPlay(BuzzerPattern::Start, currentMillis);
+        currentState = MENU_STATE_TARGET_MENU;
+        displayNeedsUpdate = true;
+      }
+      break;
+
+
+    case MENU_STATE_SCREENSAVER_EDIT:
+    {
+      constexpr int options[5] = {0, 2, 5, 15, 30};
+      int curIdx = 2;
+      for (int i = 0; i < 5; i++)
+      {
+        if (options[i] == configuredScreensaverTimeout)
+        {
+          curIdx = i;
+          break;
+        }
+      }
+      if (startPressed)
+      {
+        curIdx = (curIdx + 1) % 5;
+        configuredScreensaverTimeout = options[curIdx];
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        displayNeedsUpdate = true;
+      }
+      if (stopPressed)
+      {
+        curIdx = (curIdx - 1 + 5) % 5;
+        configuredScreensaverTimeout = options[curIdx];
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        displayNeedsUpdate = true;
+      }
+      if (resetShortPress)
+      {
+        storageSaveScreensaverTimeout(configuredScreensaverTimeout);
+        roundControllerSetScreensaverTimeout(configuredScreensaverTimeout);
+        buzzerPlay(BuzzerPattern::Start, currentMillis);
+        currentState = MENU_STATE_TARGET_MENU;
+        displayNeedsUpdate = true;
+      }
+      break;
+    }
+
+
+    case MENU_STATE_NET_MENU:
+      if (startPressed)
+      {
+        netItemIndex = (netItemIndex - 1 + NET_ITEM_COUNT) % NET_ITEM_COUNT;
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        displayNeedsUpdate = true;
+      }
+      if (stopPressed)
+      {
+        netItemIndex = (netItemIndex + 1) % NET_ITEM_COUNT;
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        displayNeedsUpdate = true;
+      }
+      if (resetShortPress)
+      {
+        if (netItemIndex == 7) // WLAN verbinden
+        {
+          buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+          displayUpdate(STR_CONNECTING, "[Stop: Abbrechen]");
+          bool ok = networkReconnectWiFi(btnStop);
+          if (ok)
+          {
+            buzzerPlay(BuzzerPattern::Start, currentMillis);
+            displayUpdate("WLAN OK", STR_STATUS_CONNECTED);
+            delay(1000);
+          }
+          else
+          {
+            buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+            displayUpdate("WLAN FEHLER", STR_CONNECT_FAILED);
+            delay(1000);
+          }
+          displayNeedsUpdate = true;
+        }
+        else if (netItemIndex == 8) // WLAN Setup (AP)
+        {
+          buzzerPlay(BuzzerPattern::Start, currentMillis);
+          networkStartAPMode();
+          menuActive = false;
+          return false;
+        }
+        else if (netItemIndex == 9) // WPS Starten
+        {
+          buzzerPlay(BuzzerPattern::Start, currentMillis);
+          networkStartWPS();
+        }
+        else if (netItemIndex == 10) // WLAN loeschen
+        {
+          buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+          currentState = MENU_STATE_WIFI_RESET_CONFIRM;
+          displayNeedsUpdate = true;
+        }
+        else if (netItemIndex == 11) // Zurueck
+        {
+          buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+          currentState = MENU_STATE_MAIN_CAT;
+          displayNeedsUpdate = true;
+        }
+        else
+        {
+          buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        }
+      }
+      break;
+
+    case MENU_STATE_WIFI_RESET_CONFIRM:
+      if (startPressed) // JA
+      {
+        buzzerPlay(BuzzerPattern::Start, currentMillis);
+        displayUpdate(STR_RESET, STR_WIFI_CLEARED);
+        networkResetCredentials();
+        delay(1000);
+        ESP.restart();
+      }
+      if (stopPressed || resetShortPress) // NEIN
+      {
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        currentState = MENU_STATE_NET_MENU;
+        displayNeedsUpdate = true;
+      }
+      break;
+
+    case MENU_STATE_TEST_MENU:
+      if (startPressed)
+      {
+        testSelectIndex = (testSelectIndex - 1 + TEST_SELECT_COUNT) % TEST_SELECT_COUNT;
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        displayNeedsUpdate = true;
+      }
+      if (stopPressed)
+      {
+        testSelectIndex = (testSelectIndex + 1) % TEST_SELECT_COUNT;
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        displayNeedsUpdate = true;
+      }
+      if (resetShortPress)
+      {
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        switch (testSelectIndex)
+        {
+        case 0: // Sensor Live Matrix
+          currentState = MENU_STATE_TEST_SENSORS;
+          for (int i = 0; i < MAX_TARGETS; i++)
+          {
+            sensorMatrixHits[i] = false;
+          }
+          lastHitTargetIndex = -1;
+          sensorIsrReset();
+          sensorIsrSetTestMode(true);
+          sensorIsrEnable(true);
+          sensorIsrSetRunning(true);
+          ledsReset();
+          break;
+
+        case 1: // LED & Buzzer Test
+          currentState = MENU_STATE_TEST_LEDS_BUZZER;
+          testTimer = currentMillis;
+          testStep = 0;
+          ledsReset();
+          break;
+
+        case 2: // Zurueck
+          currentState = MENU_STATE_MAIN_CAT;
+          break;
+        }
+        displayNeedsUpdate = true;
+      }
+      break;
+
+    case MENU_STATE_TEST_SENSORS:
+      if (resetShortPress)
+      {
+        // Short press on reset in sensor matrix clears the matrix hits
+        for (int i = 0; i < MAX_TARGETS; i++)
+        {
+          sensorMatrixHits[i] = false;
+        }
+        lastHitTargetIndex = -1;
+        ledsReset();
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        displayNeedsUpdate = true;
+      }
+      else
+      {
+        int targetIndex = -1;
+        unsigned long hitTime = 0;
+        while (sensorIsrPopNextHit(targetIndex, hitTime))
+        {
+          lastHitTargetIndex = targetIndex;
+          sensorMatrixHits[targetIndex] = true;
+          ledTargetSet(targetIndex, true);
+          buzzerPlay(BuzzerPattern::SingleShort, currentMillis);
+          displayNeedsUpdate = true;
+        }
+      }
+      break;
+
+    case MENU_STATE_TEST_LEDS_BUZZER:
+      if (resetShortPress)
+      {
+        stopRunningTest();
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        currentState = MENU_STATE_TEST_MENU;
+        displayNeedsUpdate = true;
+      }
+      else
+      {
+        if (startPressed || stopPressed)
+        {
+          buzzerPlay(BuzzerPattern::Start, currentMillis);
+        }
+
+        if (currentMillis - testTimer >= 300)
+        {
+          testTimer = currentMillis;
+          testStep = (testStep + 1) % 6;
+          for (int t = 0; t < MAX_TARGETS; t++)
+          {
+            ledTargetSet(t, t == testStep);
+          }
+          ledRedSet(testStep == 5);
+        }
+      }
+      break;
+
+    case MENU_STATE_INFO:
+      if (resetShortPress)
+      {
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        currentState = MENU_STATE_MAIN_CAT;
+        displayNeedsUpdate = true;
+      }
+      break;
+    }
+  }
+
+  static MenuState lastState = (MenuState)-1;
+  static int lastMainCat = -1;
+  static int lastTargetSub = -1;
+  static int lastNetItem = -1;
+  static int lastTestSelect = -1;
+  static int lastTargetCount = -1;
+  static bool lastRequireAll = false;
+  static int lastRoundMode = -1;
+  static int lastScreensaverTimeout = -1;
+
+  if (displayNeedsUpdate || currentState != lastState ||
+      (currentState == MENU_STATE_MAIN_CAT && mainCatIndex != lastMainCat) ||
+      (currentState == MENU_STATE_TARGET_MENU && targetSubIndex != lastTargetSub) ||
+      (currentState == MENU_STATE_TARGET_COUNT_EDIT && configuredTargetCount != lastTargetCount) ||
+      (currentState == MENU_STATE_STOP_MODE_EDIT && (configuredRequireAllTargets != lastRequireAll || configuredRoundMode != lastRoundMode)) ||
+      (currentState == MENU_STATE_SCREENSAVER_EDIT && configuredScreensaverTimeout != lastScreensaverTimeout) ||
+      (currentState == MENU_STATE_NET_MENU && netItemIndex != lastNetItem) ||
+      (currentState == MENU_STATE_TEST_MENU && testSelectIndex != lastTestSelect))
+  {
+    lastState = currentState;
+    lastMainCat = mainCatIndex;
+    lastTargetSub = targetSubIndex;
+    lastTargetCount = configuredTargetCount;
+    lastRequireAll = configuredRequireAllTargets;
+    lastRoundMode = configuredRoundMode;
+    lastScreensaverTimeout = configuredScreensaverTimeout;
+    lastNetItem = netItemIndex;
+    lastTestSelect = testSelectIndex;
+    menuUpdateDisplay();
+  }
+
+
+
+  return true;
+}
