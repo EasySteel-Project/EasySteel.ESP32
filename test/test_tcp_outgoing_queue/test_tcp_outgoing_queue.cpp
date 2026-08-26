@@ -34,12 +34,12 @@ void test_queue_preserves_partial_message_until_fully_consumed(void)
 void test_result_completion_retains_metadata(void)
 {
     TEST_ASSERT_TRUE(tcpOutgoingQueuePush(
-      "result", 6, TcpMessageKind::AcknowledgedResult, "run-42"));
+      "result", 6, TcpMessageKind::ConfirmedResult, "run-42"));
 
     TcpOutgoingCompletion completion = {};
     TEST_ASSERT_TRUE(tcpOutgoingQueueConsume(6, completion));
     TEST_ASSERT_EQUAL_INT(
-      static_cast<int>(TcpMessageKind::AcknowledgedResult),
+      static_cast<int>(TcpMessageKind::ConfirmedResult),
       static_cast<int>(completion.kind));
     TEST_ASSERT_EQUAL_STRING("run-42", completion.runId);
 }

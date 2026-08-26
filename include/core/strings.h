@@ -1,38 +1,107 @@
 #pragma once
 
-// --- General ---
+// --- General & System ---
+#define STR_APP_NAME "EasySteel"
 #define STR_BOOTING "Booten..."
 #define STR_RESET "RESET"
 #define STR_WIFI_CLEARED "WLAN geloescht"
+#define STR_FIRMWARE_VER "EasySteel v1.2.0"
+#define STR_SUBTITLE_TIMING_SYSTEM "TIMING SYSTEM"
+
+// --- Round States & Alerts ---
 #define STR_READY "Bereit"
+#define STR_READY_FOR_START "Bereit fuer Start"
 #define STR_PRESS_START "Start druecken"
 #define STR_GO "SHOOT!"
 #define STR_FINISH "FERTIG!"
-#define STR_TIME_FORMAT "Zeit: %lu.%03lus"
-#define STR_RUNNING_TIME_FORMAT "...%lu.%lus"
 #define STR_PREPARE "STANDBY"
 #define STR_WAIT_FOR_BEEP "Ton abwarten..."
 #define STR_TIMEOUT "TIMEOUT!"
+#define STR_FALSE_START "FEHLSTART"
+#define STR_FALSE_START_HINT "Vor dem Signal!"
+#define STR_REACTION "REAKTION"
+#define STR_REACTION_TIME_SUBTITLE "Reaktionszeit!"
+#define STR_DRILL_HINT "Ziehen & Stop plate treffen"
+
+// --- Target & Split Formatting ---
+#define STR_STOP_PLATE "Stop plate"
+#define STR_TARGET_N "Ziel %d"
 #define STR_HIT_STOP "H%d: STOP"
 #define STR_HIT_TARGET "H%d: ZIEL %d"
+#define STR_HIT_STOP_FORMAT "Hit %d/%d (Stop plate)"
+#define STR_HIT_TARGET_FORMAT "Hit %d/%d (Ziel %d)"
+#define STR_SPLIT_PREFIX "Split: +"
+#define STR_PENALTY_MISS_FORMAT "+%ds Miss"
+#define STR_LAST_TIME_FORMAT "Letzte Zeit: %lu.%03lus"
+#define STR_LAST_TIME_PENALTY_FORMAT "Letzte: %lu.%03lus (+%ds)"
+#define STR_TIME_FORMAT "Zeit: %lu.%03lus"
+#define STR_RUNNING_TIME_FORMAT "...%lu.%lus"
 
-// --- Menu ---
+// --- Mode Tags ---
+#define STR_MODE_TAG_DRILL "Drill"
+#define STR_MODE_TAG_ALL "Alle"
+#define STR_MODE_TAG_WK "WK"
+
+// --- Footers ---
+#define STR_FOOTER_NAV "^:St v:Sp OK:Rs"
+#define STR_FOOTER_NAV_RUN "^:St v:Sp Run:Rs"
+#define STR_FOOTER_EDIT "-:Sp +:St OK:Rs"
+#define STR_FOOTER_CONFIRM "Start:JA Stop:NEIN"
+#define STR_FOOTER_BACK "Reset: Zurueck"
+#define STR_FOOTER_MATRIX "Reset: Clear/Exit"
+#define STR_FOOTER_FINISHED "St:Split Sp:+3s Rs:OK"
+#define STR_FOOTER_SPLIT "Start:Weiter  Reset:Zurueck"
+#define STR_FOOTER_STANDBY "Start:Los  Menu:Sp+Rs"
+#define STR_FOOTER_STANDBY_DRILL "Start:Drill Menu:Sp+Rs"
+#define STR_FOOTER_REACTION "Start: Nochmals  Rs:Ende"
+#define STR_BACK "< Zurueck"
+
+// --- Menu Categories & Titles ---
+#define STR_TITLE_MENU "MENUE"
+#define STR_TITLE_SETTING "EINSTELLUNG"
+#define STR_TITLE_CONFIRM "BESTAETIGUNG"
+#define STR_TITLE_SYSINFO "SYSTEM-INFO"
+#define STR_TITLE_SENSOR_MATRIX "SENSOR LIVE-MATRIX"
+
 #define STR_CAT_TARGETS "1. Spiel & Ziele"
 #define STR_CAT_NETWORK "2. Netzwerk"
 #define STR_CAT_TEST "3. Hardware-Test"
 #define STR_CAT_INFO "4. System-Info"
 #define STR_CAT_EXIT "5. Beenden"
 
+#define STR_MENU_TITLE_MAIN "HAUPTMENUE (%d/%d)"
+#define STR_MENU_TITLE_TARGETS "SPIEL & ZIELE (%d/%d)"
+#define STR_MENU_TITLE_NETWORK "NETZWERK (%d/%d)"
+#define STR_MENU_TITLE_TESTS "TESTS (%d/%d)"
+
 #define STR_TARGET_COUNT "Zielanzahl"
 #define STR_STOP_MODE "Spiel-Modus"
 #define STR_MODE_COMPETITION "Wettkampf"
 #define STR_MODE_ALL_TARGETS "Alle Ziele"
 #define STR_MODE_REACTION "Reaktion"
-#define STR_REACTION "REAKTION"
 #define STR_SCREENSAVER "Bildschirmschoner"
 #define STR_TIMEOUT_OFF "Aus"
 
+#define STR_TITLE_TARGET_COUNT "ZIELANZAHL"
+#define STR_PARAM_TARGET_COUNT "Anzahl Ziele (1..5):"
+#define STR_TITLE_GAME_MODE "SPIEL-MODUS"
+#define STR_PARAM_MODE "Modus:"
+#define STR_HINT_GAME_MODE "WK / Alle / Reaktion"
+#define STR_TITLE_SCREENSAVER "BILDSCHIRMSCHONER"
+#define STR_PARAM_SCREENSAVER "Auto-Standby:"
+#define STR_HINT_SCREENSAVER "Aus/2/5/15/30 Min"
 
+// --- Hardware Test ---
+#define STR_TEST_SENSORS "Sensor-Matrix"
+#define STR_TEST_LEDS_BUZZER "LED & Buzzer"
+#define STR_TITLE_LED_BUZZER "LED & BUZZER"
+#define STR_PARAM_LED_BUZZER "Blinker aktiv..."
+#define STR_HINT_LED_BUZZER "Start/Stop=Ton"
+#define STR_SENSOR_MATRIX_HINT "Ziele anklopfen..."
+#define STR_SENSOR_LAST_STOP "Letzter: Stop plate"
+#define STR_SENSOR_LAST_TARGET "Letzter: ZIEL %d"
+
+// --- Network & WiFi ---
 #define STR_WIFI_STATUS "Status"
 #define STR_STATUS_CONNECTED "Verbunden"
 #define STR_STATUS_DISCONNECTED "Getrennt"
@@ -48,27 +117,14 @@
 #define STR_ACTION_WIFI_RESET "WLAN loeschen"
 #define STR_CONNECT_OK "WLAN Verbunden!"
 #define STR_CONNECT_FAILED "Nicht erreichbar"
+#define STR_CANCEL_HINT "[Stop: Abbrechen]"
+#define STR_WLAN_OK "WLAN OK"
+#define STR_WLAN_ERROR "WLAN FEHLER"
 
 #define STR_CONFIRM_WIFI_TITLE "WLAN loeschen?"
 #define STR_CONFIRM_WIFI_LINE1 "Alle WLAN-Daten"
 #define STR_CONFIRM_WIFI_LINE2 "werden entfernt!"
 
-#define STR_TEST_SENSORS "Sensor-Matrix"
-#define STR_TEST_LEDS_BUZZER "LED & Buzzer"
-
-#define STR_FOOTER_NAV "^:St v:Sp OK:Rs"
-#define STR_FOOTER_EDIT "-:Sp +:St OK:Rs"
-#define STR_FOOTER_CONFIRM "Start:JA Stop:NEIN"
-#define STR_FOOTER_BACK "Reset: Zurueck"
-#define STR_FOOTER_MATRIX "Reset: Clear/Exit"
-#define STR_BACK "< Zurueck"
-
-#define STR_FIRMWARE_VER "EasySteel v1.2.0"
-#define STR_FALSE_START "FEHLSTART"
-#define STR_FALSE_START_HINT "Vor dem Signal!"
-#define STR_FOOTER_FINISHED "St:Split Sp:+3s Rs:OK"
-
-// --- Network ---
 #define STR_WIFI_SETUP "WLAN Setup"
 #define STR_CONNECTING "Verbinden..."
 #define STR_WPS_OK "WPS OK"

@@ -3,24 +3,36 @@
 static RoundResult pendingResult = {};
 static bool resultPending = false;
 
-void roundResultPrepare(unsigned long timeMs, int penaltyCount)
+void roundResultPrepare(
+  unsigned long rawTimeMs,
+  unsigned long timeMs,
+  int missCount,
+  int penaltyCount)
 {
-  pendingResult = {timeMs, penaltyCount};
+  pendingResult = {rawTimeMs, timeMs, missCount, penaltyCount};
   resultPending = true;
 }
 
-void roundResultUpdate(unsigned long timeMs, int penaltyCount)
+void roundResultUpdate(
+  unsigned long rawTimeMs,
+  unsigned long timeMs,
+  int missCount,
+  int penaltyCount)
 {
   if (!resultPending)
+  {
     return;
+  }
 
-  pendingResult = {timeMs, penaltyCount};
+  pendingResult = {rawTimeMs, timeMs, missCount, penaltyCount};
 }
 
 bool roundResultTake(RoundResult &result)
 {
   if (!resultPending)
+  {
     return false;
+  }
 
   result = pendingResult;
   resultPending = false;

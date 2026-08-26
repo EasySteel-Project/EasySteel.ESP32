@@ -2,9 +2,9 @@
 #include "offline_buffer.h"
 #include "tcp_outgoing_queue.h"
 #include "tcp_protocol.h"
+#include "tcp_line_framer.h"
 #include "round_controller.h"
 #include <WiFi.h>
-#include <ArduinoJson.h>
 #include <esp_system.h>
 #include <lwip/sockets.h>
 #include <cerrno>
@@ -16,14 +16,14 @@ static constexpr unsigned long HEARTBEAT_INTERVAL_MS = 10000;
 static unsigned long lastConnectAttemptMs = 0;
 static constexpr unsigned long CONNECT_RETRY_INTERVAL_MS = 15000;
 static constexpr unsigned long CAPABILITY_NEGOTIATION_MS = 1000;
+static constexpr unsigned long RESULT_ACK_TIMEOUT_MS = 3000;
 
-enum class ResultAckMode { Unknown, Legacy, Acknowledged };
-static ResultAckMode resultAckMode = ResultAckMode::Unknown;
+enum class ProtocolSessionState { AwaitingCapabilities, Ready };
+static ProtocolSessionState protocolSessionState = ProtocolSessionState::AwaitingCapabilities;
 static unsigned long connectedAtMs = 0;
 static uint32_t bootSessionId = 0;
 static uint32_t nextRunNumber = 1;
-static char receiveBuffer[192] = {};
-static size_t receiveLength = 0;
+static TcpLineFramer incomingFramer;
 
 static void createRunId(char *runId, size_t capacity)
 {
@@ -43,14 +43,18 @@ static bool enqueueEvent(
   const char *event,
   int target,
   unsigned long timeMs,
-  int missedTargets,
   TcpMessageKind kind,
-  const char *runId = nullptr)
+  const char *runId = nullptr,
+  unsigned long rawTimeMs = 0,
+  int missCount = 0,
+  int penaltyCount = 0,
+  const char *contextId = nullptr)
 {
   char payload[TCP_EVENT_MAX_BYTES] = {};
   const size_t length = tcpProtocolSerializeEvent(
     payload, sizeof(payload), chipId, deviceName, event, target, timeMs,
-    roundControllerGetTargetCount(), missedTargets, runId);
+    roundControllerGetTargetCount(), runId, rawTimeMs, missCount, penaltyCount,
+    contextId);
   if (length == 0)
   {
     Serial.println("[TCP] Event exceeds the fixed protocol buffer");
@@ -60,83 +64,104 @@ static bool enqueueEvent(
   return tcpOutgoingQueuePush(payload, length, kind, runId);
 }
 
-static void handleServerMessage(const char *json)
+static void handleServerMessage(
+  const char *json,
+  size_t length,
+  unsigned long currentMillis)
 {
-  // ArduinoJson 7 deprecates the fixed-capacity alias, but it deliberately avoids heap use here.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  StaticJsonDocument<256> doc;
-#pragma GCC diagnostic pop
-  if (deserializeJson(doc, json) != DeserializationError::Ok)
-    return;
-
-  const char *event = doc["event"] | "";
-  if (strcmp(event, "capabilities") == 0)
+  TcpServerMessage message = {};
+  if (!tcpProtocolParseServerMessage(json, length, message))
   {
-    resultAckMode = doc["resultAck"] | false
-      ? ResultAckMode::Acknowledged
-      : ResultAckMode::Legacy;
     return;
   }
 
-  const char *acknowledgedRunId = doc["ack"] | nullptr;
-  if (acknowledgedRunId && offlineBufferAcknowledge(acknowledgedRunId))
+  if (message.type == TcpServerMessageType::Capabilities)
+  {
+    if (protocolSessionState == ProtocolSessionState::AwaitingCapabilities &&
+        currentMillis - connectedAtMs < CAPABILITY_NEGOTIATION_MS)
+    {
+      protocolSessionState = ProtocolSessionState::Ready;
+      Serial.println("[TCP] Protocol v1 capability negotiation completed");
+      return;
+    }
+
+    Serial.println("[TCP] Unexpected capabilities message; reconnecting");
+    tcpClient.stop();
+    resetPendingTransmission();
+    return;
+  }
+
+  if (protocolSessionState != ProtocolSessionState::Ready)
+  {
+    Serial.println("[TCP] Server message received before capabilities; reconnecting");
+    tcpClient.stop();
+    resetPendingTransmission();
+    return;
+  }
+
+  if (message.type == TcpServerMessageType::Acknowledgement &&
+      offlineBufferAcknowledge(message.runId))
   {
     Serial.print("[OUTBOX] Server acknowledged run ");
-    Serial.println(acknowledgedRunId);
+    Serial.println(message.runId);
+    return;
+  }
+
+  if (message.type == TcpServerMessageType::MatchInfo &&
+      roundControllerIsIdle())
+  {
+    roundControllerSetMatchInfo(message.contextId, message.stage);
   }
 }
 
-static void receiveServerMessages()
+static void receiveServerMessages(unsigned long currentMillis)
 {
   while (tcpClient.available() > 0)
   {
     const char value = static_cast<char>(tcpClient.read());
-    if (value == '\n')
+    const char *json = nullptr;
+    size_t length = 0;
+    const TcpLineFrameResult result = incomingFramer.push(value, json, length);
+    if (result == TcpLineFrameResult::Complete)
     {
-      receiveBuffer[receiveLength] = '\0';
-      handleServerMessage(receiveBuffer);
-      receiveLength = 0;
+      handleServerMessage(json, length, currentMillis);
     }
-    else if (value != '\r')
+    else if (result == TcpLineFrameResult::Discarded)
     {
-      if (receiveLength < sizeof(receiveBuffer) - 1)
-        receiveBuffer[receiveLength++] = value;
-      else
-        receiveLength = 0;
+      Serial.println("[TCP] Oversized server frame discarded");
     }
   }
 }
 
 static void queueOldestResult(const String& chipId, const String& deviceName)
 {
-  if (resultAckMode == ResultAckMode::Unknown)
+  if (protocolSessionState != ProtocolSessionState::Ready)
     return;
 
   BufferedRunData run = {};
   if (!offlineBufferPeekOldestUnsent(run))
     return;
 
-  const TcpMessageKind kind = resultAckMode == ResultAckMode::Acknowledged
-    ? TcpMessageKind::AcknowledgedResult
-    : TcpMessageKind::LegacyResult;
   if (enqueueEvent(
-        chipId, deviceName, "end", -1, run.timeMs, run.missedTargets,
-        kind, run.runId))
+        chipId, deviceName, "end", -1, run.timeMs,
+        TcpMessageKind::ConfirmedResult, run.runId,
+        run.rawTimeMs, run.missCount, run.penaltyCount, run.contextId))
   {
     offlineBufferMarkOldestQueued(run.runId);
   }
 }
 
-static void handleCompletedMessage(const TcpOutgoingCompletion& completion)
+static void handleCompletedMessage(
+  const TcpOutgoingCompletion& completion,
+  unsigned long currentMillis)
 {
-  if (completion.kind == TcpMessageKind::LegacyResult)
-    offlineBufferCompleteOldestSend(completion.runId, false);
-  else if (completion.kind == TcpMessageKind::AcknowledgedResult)
-    offlineBufferCompleteOldestSend(completion.runId, true);
+  if (completion.kind == TcpMessageKind::ConfirmedResult)
+  {
+    offlineBufferCompleteOldestSend(completion.runId, currentMillis);
+  }
 }
 
-static void flushOneNonBlockingWrite()
+static void flushOneNonBlockingWrite(unsigned long currentMillis)
 {
   TcpOutgoingView view = {};
   if (!tcpOutgoingQueuePeek(view))
@@ -151,7 +176,9 @@ static void flushOneNonBlockingWrite()
   {
     TcpOutgoingCompletion completion = {};
     if (tcpOutgoingQueueConsume(static_cast<size_t>(sent), completion))
-      handleCompletedMessage(completion);
+    {
+      handleCompletedMessage(completion, currentMillis);
+    }
     return;
   }
 
@@ -169,7 +196,7 @@ void tcpClientInit()
   lastConnectAttemptMs = 0;
   bootSessionId = esp_random();
   nextRunNumber = 1;
-  receiveLength = 0;
+  incomingFramer.reset();
   resetPendingTransmission();
 }
 
@@ -191,29 +218,47 @@ void tcpClientSendEvent(
   bool provisioning,
   const char *event,
   int target,
-  unsigned long timeMs,
-  int missedTargets)
+  unsigned long timeMs)
 {
   if (provisioning)
     return;
 
-  if (strcmp(event, "end") == 0)
+  if (!tcpClient || !tcpClient.connected())
   {
-    char runId[24] = {};
-    createRunId(runId, sizeof(runId));
-    if (!offlineBufferPush(runId, timeMs, missedTargets))
-      Serial.println("[OUTBOX] Warning: oldest result replaced because outbox is full");
     return;
   }
 
-  if (!tcpClient || !tcpClient.connected())
-    return;
-
   if (!enqueueEvent(
-        chipId, deviceName, event, target, timeMs, missedTargets,
-        TcpMessageKind::Live))
+        chipId, deviceName, event, target, timeMs, TcpMessageKind::Live))
   {
     Serial.println("[TCP] Live event dropped because the outgoing queue is full");
+  }
+}
+
+void tcpClientSendResult(
+  bool provisioning,
+  unsigned long rawTimeMs,
+  unsigned long timeMs,
+  int missCount,
+  int penaltyCount,
+  const char *contextId)
+{
+  if (provisioning)
+  {
+    return;
+  }
+
+  char runId[TCP_RUN_ID_BYTES] = {};
+  createRunId(runId, sizeof(runId));
+  if (!offlineBufferPush(
+        runId,
+        contextId,
+        rawTimeMs,
+        timeMs,
+        missCount,
+        penaltyCount))
+  {
+    Serial.println("[OUTBOX] Warning: oldest result replaced because outbox is full");
   }
 }
 
@@ -237,6 +282,11 @@ void tcpClientTick(
     }
     resetPendingTransmission();
 
+    if (!roundControllerIsIdle())
+    {
+      return;
+    }
+
     if (currentMillis - lastConnectAttemptMs >= CONNECT_RETRY_INTERVAL_MS)
     {
       lastConnectAttemptMs = currentMillis;
@@ -255,11 +305,11 @@ void tcpClientTick(
       if (tcpClient.connect(serverIP.c_str(), tcpPort, 150))
       {
         Serial.println("Connected to server!");
-        resultAckMode = ResultAckMode::Unknown;
+        protocolSessionState = ProtocolSessionState::AwaitingCapabilities;
         connectedAtMs = currentMillis;
-        receiveLength = 0;
+        incomingFramer.reset();
         resetPendingTransmission();
-        tcpClientSendEvent(chipId, deviceName, provisioning, "online", -1, 0, 0);
+        tcpClientSendEvent(chipId, deviceName, provisioning, "online", -1, 0);
       }
       else if (shouldLog)
       {
@@ -269,13 +319,26 @@ void tcpClientTick(
     return;
   }
 
-  receiveServerMessages();
+  receiveServerMessages(currentMillis);
 
-  if (resultAckMode == ResultAckMode::Unknown &&
+  if (!tcpClient || !tcpClient.connected())
+  {
+    return;
+  }
+
+  if (protocolSessionState == ProtocolSessionState::AwaitingCapabilities &&
       currentMillis - connectedAtMs >= CAPABILITY_NEGOTIATION_MS)
   {
-    resultAckMode = ResultAckMode::Legacy;
-    Serial.println("[TCP] Server did not advertise result ACK support; using legacy delivery");
+    Serial.println("[TCP] Required protocol v1 capabilities missing; reconnecting");
+    tcpClient.stop();
+    resetPendingTransmission();
+    return;
+  }
+
+  if (protocolSessionState == ProtocolSessionState::Ready &&
+      offlineBufferReleaseTimedOutAck(currentMillis, RESULT_ACK_TIMEOUT_MS))
+  {
+    Serial.println("[OUTBOX] ACK timeout; scheduling result retransmission");
   }
 
   queueOldestResult(chipId, deviceName);
@@ -283,8 +346,8 @@ void tcpClientTick(
   if (currentMillis - lastHeartbeatMs >= HEARTBEAT_INTERVAL_MS)
   {
     lastHeartbeatMs = currentMillis;
-    tcpClientSendEvent(chipId, deviceName, provisioning, "ping", -1, 0, 0);
+    tcpClientSendEvent(chipId, deviceName, provisioning, "ping", -1, 0);
   }
 
-  flushOneNonBlockingWrite();
+  flushOneNonBlockingWrite(currentMillis);
 }

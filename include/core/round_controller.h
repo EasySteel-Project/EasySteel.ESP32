@@ -20,3 +20,18 @@ void roundControllerSetScreensaverTimeout(int minutes);
 
 /// Return true while the device is safely idle for configuration or firmware maintenance.
 bool roundControllerIsIdle();
+
+/// Get the current stage name (or empty string if none).
+const char *roundControllerGetStageName();
+
+/// Get the current opaque match context identifier (or empty string if none).
+const char *roundControllerGetContextId();
+
+/// Set or clear display-only match context while the controller is idle.
+void roundControllerSetMatchInfo(const char *contextId, const char *stage);
+
+/// Get the last completed round time in milliseconds.
+unsigned long roundControllerGetLastRoundTimeMs();
+
+/// Get the last completed round penalty count.
+int roundControllerGetLastPenaltyCount();

@@ -31,8 +31,16 @@ void networkTick(unsigned long currentMillis);
 /// Start WPS push-button negotiation.
 void networkStartWPS();
 
-/// Send a JSON event to connected client. No-op if no client.
-void networkSendEvent(const char *event, int target, unsigned long timeMs, int missedTargets = 0);
+/// Send a best-effort JSON event to the connected server.
+void networkSendEvent(const char *event, int target, unsigned long timeMs);
+
+/// Retain a confirmed result in the reliable result outbox.
+void networkSendResult(
+  unsigned long rawTimeMs,
+  unsigned long timeMs,
+  int missCount,
+  int penaltyCount,
+  const char *contextId);
 
 /// Get the device name (e.g. "Bahn 1"). Falls back to MAC-based ID.
 const String &networkGetDeviceName();

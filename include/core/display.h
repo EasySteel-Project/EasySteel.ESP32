@@ -11,8 +11,8 @@ void displayUpdate(const char *line1, const char *line2);
 /// Update display with a big time value in the center and optional progress bar (0.0 to 1.0) or penalty dots (0 to 10).
 void displayUpdateBigTime(const char *label, const char *numStr, const char *suffix, float progress = -1.0f, int penaltyCount = -1);
 
-/// Update display for Standby mode showing lane/device name, IP address, status, and active match config.
-void displayUpdateStandby(const char *deviceName, const char *ipAddress, bool serverConnected, int targetCount = 5, int roundMode = 0);
+/// Update display for Standby mode showing lane/stage name, ready status, last result time, and active match config.
+void displayUpdateStandby(const char *deviceName, const char *stageName, unsigned long lastTimeMs, int penaltyCount, bool serverConnected, int targetCount = 5, int roundMode = 0);
 
 /// Update display for active RUNNING state showing time, progress, and live hit target boxes.
 void displayUpdateRunning(const char *timeStr, float progress, const bool hitMask[5], int targetCount);

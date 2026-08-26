@@ -11,17 +11,16 @@ The ESP32 is the authoritative system. It manages the entire round lifecycle and
 ### 1. Protocol v1 Stabilization
 
 - [x] Document events, mandatory fields, units, and delivery classes as a versioned specification.
-- [ ] Add parser and compatibility test cases with realistic payloads.
+- [x] Add strict parser, framing, validation, and pre-v1 rejection tests with realistic payloads.
 - [ ] Cover reconnection, duplicate results, and dropped ACKs with integration tests.
 - [x] Clarify: ACK confirms transport receipt only and never triggers a hardware state transition.
 
 ### 2. Shooter & Match Context Display
 
-- [ ] Define a non-controlling display command, for example:
-  `{"cmd":"match_info","shooter":"Max Mustermann","stage":"Roundabout","string":3,"maxStrings":5}`
-- [ ] Enforce strict payload size limits and sanitize strings for display rendering only.
+- [x] Define the non-controlling `match_info` event with opaque `contextId` correlation.
+- [x] Enforce strict byte limits and printable-ASCII validation for device display text.
 - [ ] Render shooter, stage, and string on the OLED standby screen.
-- [ ] Guarantee that missing or stale context never alters round timing or scoring.
+- [x] Lock context outside Standby and guarantee that it never alters round timing or scoring.
 
 Commands for remote `arm`, `disarm`, `start`, `reset`, time correction, or penalty modification remain explicitly excluded.
 

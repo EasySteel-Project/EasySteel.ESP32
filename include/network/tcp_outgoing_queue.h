@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-enum class TcpMessageKind : uint8_t { Live, LegacyResult, AcknowledgedResult };
+enum class TcpMessageKind : uint8_t { Live, ConfirmedResult };
 
 struct TcpOutgoingView
 {

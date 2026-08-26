@@ -59,7 +59,7 @@ stateDiagram-v2
 
 ### STANDBY
 
-- Zeigt Gerätename, IP beziehungsweise Offline-Status und aktiven Rundenmodus.
+- Zeigt Gerätename / Stage-Name, aktiven Rundenmodus, Bereit-Status und die letzte Runden- bzw. Reaktionszeit. Netzwerk- und IP-Diagnosedaten sind im Gerätemenü abrufbar (**Menü → Netzwerk** / **Menü → Info**).
 - Start beginnt einen zufälligen Vorlauf von 1 bis 4 Sekunden.
 - Stop und Reset gemeinsam für 1,5 Sekunden öffnen das Gerätemenü.
 - Der Bildschirmschoner dimmt das OLED, ohne WLAN oder TCP zu trennen.

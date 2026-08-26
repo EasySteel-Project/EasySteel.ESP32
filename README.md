@@ -98,28 +98,28 @@ Firmware events are UTF-8 JSON objects terminated by `\n`. Protocol version 1 in
 The complete field, event, compatibility, and delivery contract is documented in [docs/PROTOCOL.md](docs/PROTOCOL.md).
 
 ```json
-{"protocolVersion":1,"deviceId":"EasySteel_6134","deviceName":"Lane 1","event":"end","time":4250,"targetCount":5,"runId":"91af20c3-7","missedTargets":0}
+{"protocolVersion":1,"deviceId":"EasySteel_6134","deviceName":"Lane 1","event":"end","timeMs":4250,"targetCount":5,"runId":"91af20c3-7","rawTimeMs":1250,"missCount":1,"penaltyCount":1,"penaltyTimeMs":3000}
 ```
 
-An ACK-capable server replies within one second after connection:
+Every protocol v1 server must reply within one second after connection:
 
 ```json
-{"event":"capabilities","resultAck":true}
+{"protocolVersion":1,"event":"capabilities","resultAck":true}
 ```
 
-The firmware then retains each result in its RAM outbox until acknowledgement:
+The firmware retains each result in its RAM outbox until acknowledgement:
 
 ```json
-{"ack":"91af20c3-7"}
+{"protocolVersion":1,"event":"ack","runId":"91af20c3-7"}
 ```
 
-Servers that do not advertise ACK support automatically use legacy delivery. Desktop applications should ignore unknown JSON properties.
+Missing or incompatible capability negotiation closes the connection; queued results remain available for the next reconnect. Desktop applications should ignore unknown JSON properties.
 
-The result outbox holds at most 20 entries and is intentionally RAM-only. A reboot or power loss removes results that have not yet been delivered.
+The result outbox holds at most 20 entries and is intentionally RAM-only. Missing acknowledgements trigger retransmission after three seconds. A reboot or power loss removes results that have not yet been delivered.
 
 Capabilities and acknowledgements affect delivery only. They never transfer round control to the server.
 
-The round controller only appends serialized messages to a bounded static queue. The network tick performs at most one non-blocking socket write per iteration, so an unresponsive desktop application cannot stall target processing or trigger the task watchdog. Final results remain in the separate outbox until the socket transmission completes or, in ACK mode, until the matching acknowledgement arrives.
+The round controller only appends serialized messages to a bounded static queue. The network tick performs at most one non-blocking socket write per iteration, so an unresponsive desktop application cannot stall target processing or trigger the task watchdog. Final results remain in the separate outbox until the matching acknowledgement arrives.
 
 ## Web and OTA security
 

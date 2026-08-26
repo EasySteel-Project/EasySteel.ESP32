@@ -148,7 +148,7 @@ static void menuUpdateDisplay()
       STR_CAT_EXIT
     };
     char title[24];
-    snprintf(title, sizeof(title), "HAUPTMENUE (%d/%d)", mainCatIndex + 1, MAIN_CAT_COUNT);
+    snprintf(title, sizeof(title), STR_MENU_TITLE_MAIN, mainCatIndex + 1, MAIN_CAT_COUNT);
     displayUpdateMenuList(title, mainItems, MAIN_CAT_COUNT, mainCatIndex, STR_FOOTER_NAV);
     break;
   }
@@ -162,7 +162,7 @@ static void menuUpdateDisplay()
       STR_BACK
     };
     char title[24];
-    snprintf(title, sizeof(title), "SPIEL & ZIELE (%d/%d)", targetSubIndex + 1, TARGET_SUB_COUNT);
+    snprintf(title, sizeof(title), STR_MENU_TITLE_TARGETS, targetSubIndex + 1, TARGET_SUB_COUNT);
     displayUpdateMenuList(title, targetItems, TARGET_SUB_COUNT, targetSubIndex, STR_FOOTER_NAV);
     break;
   }
@@ -171,14 +171,14 @@ static void menuUpdateDisplay()
   {
     char valStr[16];
     snprintf(valStr, sizeof(valStr), "[ %d ]", configuredTargetCount);
-    displayUpdateValueEdit("ZIELANZAHL", "Anzahl Ziele (1..5):", valStr, nullptr, STR_FOOTER_EDIT);
+    displayUpdateValueEdit(STR_TITLE_TARGET_COUNT, STR_PARAM_TARGET_COUNT, valStr, nullptr, STR_FOOTER_EDIT);
     break;
   }
 
   case MENU_STATE_STOP_MODE_EDIT:
   {
     const char *modeStr = (configuredRoundMode == 2) ? STR_MODE_REACTION : ((configuredRoundMode == 1) ? STR_MODE_ALL_TARGETS : STR_MODE_COMPETITION);
-    displayUpdateValueEdit("SPIEL-MODUS", "Modus:", modeStr, "WK / Alle / Reaktion", STR_FOOTER_NAV);
+    displayUpdateValueEdit(STR_TITLE_GAME_MODE, STR_PARAM_MODE, modeStr, STR_HINT_GAME_MODE, STR_FOOTER_NAV);
     break;
   }
 
@@ -194,7 +194,7 @@ static void menuUpdateDisplay()
     {
       snprintf(valStr, sizeof(valStr), "[ %d Min ]", configuredScreensaverTimeout);
     }
-    displayUpdateValueEdit("BILDSCHIRMSCHONER", "Auto-Standby:", valStr, "Aus/2/5/15/30 Min", STR_FOOTER_NAV);
+    displayUpdateValueEdit(STR_TITLE_SCREENSAVER, STR_PARAM_SCREENSAVER, valStr, STR_HINT_SCREENSAVER, STR_FOOTER_NAV);
     break;
   }
 
@@ -267,8 +267,8 @@ static void menuUpdateDisplay()
     };
 
     char title[24];
-    snprintf(title, sizeof(title), "NETZWERK (%d/%d)", netItemIndex + 1, NET_ITEM_COUNT);
-    const char *footer = (netItemIndex >= 7 && netItemIndex <= 10) ? "^:St v:Sp Run:Rs" : STR_FOOTER_NAV;
+    snprintf(title, sizeof(title), STR_MENU_TITLE_NETWORK, netItemIndex + 1, NET_ITEM_COUNT);
+    const char *footer = (netItemIndex >= 7 && netItemIndex <= 10) ? STR_FOOTER_NAV_RUN : STR_FOOTER_NAV;
     displayUpdateMenuList(title, netItems, NET_ITEM_COUNT, netItemIndex, footer);
     break;
   }
@@ -285,7 +285,7 @@ static void menuUpdateDisplay()
       STR_BACK
     };
     char title[24];
-    snprintf(title, sizeof(title), "TESTS (%d/%d)", testSelectIndex + 1, TEST_SELECT_COUNT);
+    snprintf(title, sizeof(title), STR_MENU_TITLE_TESTS, testSelectIndex + 1, TEST_SELECT_COUNT);
     displayUpdateMenuList(title, testItems, TEST_SELECT_COUNT, testSelectIndex, STR_FOOTER_NAV);
     break;
   }
@@ -295,7 +295,7 @@ static void menuUpdateDisplay()
     break;
 
   case MENU_STATE_TEST_LEDS_BUZZER:
-    displayUpdateValueEdit("LED & BUZZER", "Blinker aktiv...", "Start/Stop=Ton", nullptr, STR_FOOTER_BACK);
+    displayUpdateValueEdit(STR_TITLE_LED_BUZZER, STR_PARAM_LED_BUZZER, STR_HINT_LED_BUZZER, nullptr, STR_FOOTER_BACK);
     break;
 
   case MENU_STATE_INFO:
@@ -560,18 +560,18 @@ bool menuTick(unsigned long currentMillis)
         if (netItemIndex == 7) // WLAN verbinden
         {
           buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
-          displayUpdate(STR_CONNECTING, "[Stop: Abbrechen]");
+          displayUpdate(STR_CONNECTING, STR_CANCEL_HINT);
           bool ok = networkReconnectWiFi(btnStop);
           if (ok)
           {
             buzzerPlay(BuzzerPattern::Start, currentMillis);
-            displayUpdate("WLAN OK", STR_STATUS_CONNECTED);
+            displayUpdate(STR_WLAN_OK, STR_STATUS_CONNECTED);
             delay(1000);
           }
           else
           {
             buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
-            displayUpdate("WLAN FEHLER", STR_CONNECT_FAILED);
+            displayUpdate(STR_WLAN_ERROR, STR_CONNECT_FAILED);
             delay(1000);
           }
           displayNeedsUpdate = true;

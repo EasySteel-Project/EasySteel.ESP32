@@ -2,15 +2,25 @@
 
 struct RoundResult
 {
+  unsigned long rawTimeMs;
   unsigned long timeMs;
+  int missCount;
   int penaltyCount;
 };
 
 /// Store a finished result until the range officer confirms or discards it.
-void roundResultPrepare(unsigned long timeMs, int penaltyCount);
+void roundResultPrepare(
+  unsigned long rawTimeMs,
+  unsigned long timeMs,
+  int missCount,
+  int penaltyCount);
 
 /// Update the pending result after penalty changes.
-void roundResultUpdate(unsigned long timeMs, int penaltyCount);
+void roundResultUpdate(
+  unsigned long rawTimeMs,
+  unsigned long timeMs,
+  int missCount,
+  int penaltyCount);
 
 /// Consume the pending result exactly once.
 bool roundResultTake(RoundResult &result);

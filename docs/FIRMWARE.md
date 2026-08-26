@@ -59,7 +59,7 @@ stateDiagram-v2
 
 ### STANDBY
 
-- Displays device name, IP address or offline status, and active round mode.
+- Displays device / stage name, active round mode, ready status, and last round / reaction time. Network and IP diagnostics are available via the menu (**Menu → Network** / **Menu → Info**).
 - Start initiates a random countdown delay between 1.0 and 4.0 seconds.
 - Holding Stop and Reset together for 1.5 seconds opens the configuration menu.
 - The screensaver dims the OLED after inactivity without disconnecting Wi-Fi or TCP.

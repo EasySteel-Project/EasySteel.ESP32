@@ -94,7 +94,7 @@ static void drawHeader()
   oled.setTextSize(1);
   oled.setTextColor(SH110X_WHITE);
   oled.setCursor(0, 0);
-  oled.print("EasySteel");
+  oled.print(STR_APP_NAME);
   drawNetworkStatus();
   oled.drawLine(0, 10, 127, 10, SH110X_WHITE);
 }
@@ -171,60 +171,103 @@ static void drawTargetMiniBoxes(int y, const bool hitMask[5], int targetCount)
   oled.setTextColor(SH110X_WHITE, SH110X_BLACK);
 }
 
-void displayUpdateStandby(const char *deviceName, const char *ipAddress, bool serverConnected, int targetCount, int roundMode)
+void displayUpdateStandby(
+  const char *deviceName,
+  const char *stageName,
+  unsigned long lastTimeMs,
+  int penaltyCount,
+  bool serverConnected,
+  int targetCount,
+  int roundMode)
 {
 #if USE_DISPLAY
   if (!connected)
     return;
   drawHeader();
 
-  // Lane / Device Name + Mode Tag
+  // Subheader (y=13): Stage Name (if set) or Device Name on left, Mode Tag on right
   oled.setTextSize(1);
   oled.setTextColor(SH110X_WHITE);
   oled.setCursor(0, 13);
-  if (deviceName && strlen(deviceName) > 0)
-  {
-    oled.print(deviceName);
-  }
-  else
-  {
-    oled.print("EasySteel");
-  }
 
-  // Right-aligned Match config tag (e.g. "WK (5Z)" or "Alle (5Z)" or "Drill")
   char modeTag[16];
   if (roundMode == 2)
   {
-    snprintf(modeTag, sizeof(modeTag), "Drill");
+    snprintf(modeTag, sizeof(modeTag), STR_MODE_TAG_DRILL);
   }
   else
   {
-    snprintf(modeTag, sizeof(modeTag), "%s(%dZ)", (roundMode == 1) ? "Alle" : "WK", targetCount);
+    snprintf(modeTag, sizeof(modeTag), "%s(%dZ)", (roundMode == 1) ? STR_MODE_TAG_ALL : STR_MODE_TAG_WK, targetCount);
   }
   int tagLen = strlen(modeTag);
+
+  const char *leftText = STR_APP_NAME;
+  if (stageName && strlen(stageName) > 0)
+  {
+    leftText = stageName;
+  }
+  else if (deviceName && strlen(deviceName) > 0)
+  {
+    leftText = deviceName;
+  }
+
+  int maxChars = (128 - tagLen * 6 - 6) / 6;
+  if (maxChars < 1)
+  {
+    maxChars = 1;
+  }
+  char leftBuf[24];
+  snprintf(leftBuf, sizeof(leftBuf), "%.*s", maxChars, leftText);
+  oled.print(leftBuf);
+
+  // Right-aligned Match config tag (e.g. "WK(5Z)" or "Alle(5Z)" or "Drill")
   oled.setCursor(128 - tagLen * 6, 13);
   oled.print(modeTag);
 
   // Large "BEREIT" status (Size 2)
   oled.setTextSize(2);
   oled.setCursor(0, 24);
-  oled.print((roundMode == 2) ? "DRILL" : STR_READY);
+  oled.print((roundMode == 2) ? STR_MODE_TAG_DRILL : STR_READY);
 
-  // Bottom info: IP / Status
+  // Bottom info (y=44, Size 1): Last time or mode hint
   oled.setTextSize(1);
   oled.setCursor(0, 44);
   if (roundMode == 2)
   {
-    oled.print("Ziehen & Stopp treffen");
-  }
-  else if (ipAddress && strlen(ipAddress) > 0)
-  {
-    oled.print("IP: ");
-    oled.print(ipAddress);
+    if (lastTimeMs > 0)
+    {
+      unsigned long secs = lastTimeMs / 1000;
+      unsigned long ms = lastTimeMs % 1000;
+      char buf[24];
+      snprintf(buf, sizeof(buf), STR_LAST_TIME_FORMAT, secs, ms);
+      oled.print(buf);
+    }
+    else
+    {
+      oled.print(STR_DRILL_HINT);
+    }
   }
   else
   {
-    oled.print("Modus: Offline");
+    if (lastTimeMs > 0)
+    {
+      unsigned long secs = lastTimeMs / 1000;
+      unsigned long ms = lastTimeMs % 1000;
+      char buf[24];
+      if (penaltyCount > 0)
+      {
+        snprintf(buf, sizeof(buf), STR_LAST_TIME_PENALTY_FORMAT, secs, ms, penaltyCount * 3);
+      }
+      else
+      {
+        snprintf(buf, sizeof(buf), STR_LAST_TIME_FORMAT, secs, ms);
+      }
+      oled.print(buf);
+    }
+    else
+    {
+      oled.print(STR_READY_FOR_START);
+    }
   }
 
   // Footer navigation hint
@@ -232,15 +275,11 @@ void displayUpdateStandby(const char *deviceName, const char *ipAddress, bool se
   oled.setCursor(0, 56);
   if (roundMode == 2)
   {
-    oled.print("Start: Drill starten");
-  }
-  else if (serverConnected)
-  {
-    oled.print("Start: Los  Menu:St+Rs");
+    oled.print(STR_FOOTER_STANDBY_DRILL);
   }
   else
   {
-    oled.print("Start: Standalone");
+    oled.print(STR_FOOTER_STANDBY);
   }
 
   oled.display();
@@ -263,8 +302,8 @@ void displayUpdateReaction(const char *timeStr, int hitTarget)
   if (hitTarget >= 0)
   {
     char tgtBuf[16];
-    if (hitTarget == 0) snprintf(tgtBuf, sizeof(tgtBuf), "Stopp-Platte");
-    else snprintf(tgtBuf, sizeof(tgtBuf), "Ziel %d", hitTarget);
+    if (hitTarget == 0) snprintf(tgtBuf, sizeof(tgtBuf), STR_STOP_PLATE);
+    else snprintf(tgtBuf, sizeof(tgtBuf), STR_TARGET_N, hitTarget);
     oled.setCursor(128 - (int)strlen(tgtBuf) * 6, 12);
     oled.print(tgtBuf);
   }
@@ -283,17 +322,16 @@ void displayUpdateReaction(const char *timeStr, int hitTarget)
   // Subtitle / Rating prompt
   oled.setTextSize(1);
   oled.setCursor(0, 46);
-  oled.print("Reaktionszeit!");
+  oled.print(STR_REACTION_TIME_SUBTITLE);
 
   // Footer legend
   oled.drawLine(0, 55, 127, 55, SH110X_WHITE);
   oled.setCursor(0, 56);
-  oled.print("Start: Nochmals  Rs:Ende");
+  oled.print(STR_FOOTER_REACTION);
 
   oled.display();
 #endif
 }
-
 
 void displayUpdateRunning(const char *timeStr, float progress, const bool hitMask[5], int targetCount)
 {
@@ -368,7 +406,7 @@ void displayUpdateFinished(const char *timeStr, int penaltyCount, const bool hit
   if (penaltyCount > 0)
   {
     char penBuf[16];
-    snprintf(penBuf, sizeof(penBuf), "+%ds Miss", penaltyCount * 3);
+    snprintf(penBuf, sizeof(penBuf), STR_PENALTY_MISS_FORMAT, penaltyCount * 3);
     oled.setCursor(128 - (int)strlen(penBuf) * 6, 12);
     oled.print(penBuf);
   }
@@ -411,11 +449,11 @@ void displayUpdateSplitDetail(int hitIndex, int totalHits, int targetId, const c
   char headBuf[28];
   if (targetId == 0)
   {
-    snprintf(headBuf, sizeof(headBuf), "Hit %d/%d (Stopp-Platte)", hitIndex, totalHits);
+    snprintf(headBuf, sizeof(headBuf), STR_HIT_STOP_FORMAT, hitIndex, totalHits);
   }
   else
   {
-    snprintf(headBuf, sizeof(headBuf), "Hit %d/%d (Ziel %d)", hitIndex, totalHits, targetId);
+    snprintf(headBuf, sizeof(headBuf), STR_HIT_TARGET_FORMAT, hitIndex, totalHits, targetId);
   }
   oled.print(headBuf);
 
@@ -435,7 +473,7 @@ void displayUpdateSplitDetail(int hitIndex, int totalHits, int targetId, const c
   oled.setCursor(0, 46);
   if (deltaStr && strlen(deltaStr) > 0)
   {
-    oled.print("Split: +");
+    oled.print(STR_SPLIT_PREFIX);
     oled.print(deltaStr);
     oled.print("s");
   }
@@ -443,7 +481,7 @@ void displayUpdateSplitDetail(int hitIndex, int totalHits, int targetId, const c
   // Footer legend at y=56
   oled.drawLine(0, 55, 127, 55, SH110X_WHITE);
   oled.setCursor(0, 56);
-  oled.print("Start:Weiter  Reset:Zurueck");
+  oled.print(STR_FOOTER_SPLIT);
 
   oled.display();
 #endif
@@ -521,7 +559,6 @@ void displayUpdateBigTime(const char *label, const char *numStr, const char *suf
 #endif
 }
 
-
 void displayShowStartupAnimation()
 {
 #if USE_DISPLAY
@@ -568,7 +605,7 @@ void displayShowStartupAnimation()
     oled.setTextSize(2);
     oled.setTextColor(SH110X_WHITE);
     oled.setCursor(10, 16);
-    oled.print("EasySteel");
+    oled.print(STR_APP_NAME);
 
     // Draw growing underline
     oled.drawLine(64 - w, 36, 64 + w, 36, SH110X_WHITE);
@@ -591,12 +628,12 @@ void displayShowStartupAnimation()
     oled.setTextSize(2);
     oled.setTextColor(SH110X_WHITE);
     oled.setCursor(10, 16);
-    oled.print("EasySteel");
+    oled.print(STR_APP_NAME);
     oled.drawLine(10, 36, 118, 36, SH110X_WHITE);
 
     oled.setTextSize(1);
     oled.setCursor(25, 46 + yOffset);
-    oled.print("TIMING SYSTEM");
+    oled.print(STR_SUBTITLE_TIMING_SYSTEM);
     oled.display();
 
     if (yOffset == 9)
@@ -663,7 +700,7 @@ void displayUpdateMenuList(const char *headerTitle, const char *const *items, in
 
   // Category Header / Breadcrumb at y = 13
   oled.setCursor(0, 13);
-  oled.print(headerTitle ? headerTitle : "MENUE");
+  oled.print(headerTitle ? headerTitle : STR_TITLE_MENU);
 
   // Previous item at y = 23
   if (selectedIndex > 0 && selectedIndex - 1 < itemCount)
@@ -722,7 +759,7 @@ void displayUpdateValueEdit(const char *categoryTitle, const char *paramName, co
 
   // Category Title
   oled.setCursor(0, 13);
-  oled.print(categoryTitle ? categoryTitle : "EINSTELLUNG");
+  oled.print(categoryTitle ? categoryTitle : STR_TITLE_SETTING);
 
   // Parameter Name
   oled.setCursor(0, 23);
@@ -779,7 +816,7 @@ void displayUpdateConfirmation(const char *title, const char *line1, const char 
   oled.setTextColor(SH110X_WHITE);
 
   oled.setCursor(0, 13);
-  oled.print(title ? title : "BESTAETIGUNG");
+  oled.print(title ? title : STR_TITLE_CONFIRM);
 
   oled.setCursor(4, 25);
   oled.print(line1 ? line1 : "");
@@ -807,7 +844,7 @@ void displayUpdateSensorMatrix(const bool hitTargets[5], int lastHitIndex)
   oled.setTextColor(SH110X_WHITE);
 
   oled.setCursor(0, 13);
-  oled.print("SENSOR LIVE-MATRIX");
+  oled.print(STR_TITLE_SENSOR_MATRIX);
 
   // Draw 5 Target boxes: 1, 2, 3, 4, STOP
   // Targets 1..4 are indices 1..4 in hitTargets; STOP is index 0 in hitTargets.
@@ -841,15 +878,15 @@ void displayUpdateSensorMatrix(const bool hitTargets[5], int lastHitIndex)
   oled.setCursor(0, 42);
   if (lastHitIndex < 0)
   {
-    oled.print("Ziele anklopfen...");
+    oled.print(STR_SENSOR_MATRIX_HINT);
   }
   else if (lastHitIndex == 0)
   {
-    oled.print("Letzter: STOP-PLATE");
+    oled.print(STR_SENSOR_LAST_STOP);
   }
   else
   {
-    oled.printf("Letzter: ZIEL %d", lastHitIndex);
+    oled.printf(STR_SENSOR_LAST_TARGET, lastHitIndex);
   }
 
   // Divider and Footer
@@ -872,7 +909,7 @@ void displayUpdateDeviceInfo(const char *fwVersion, const char *deviceName, cons
   oled.setTextColor(SH110X_WHITE);
 
   oled.setCursor(0, 13);
-  oled.print("SYSTEM-INFO");
+  oled.print(STR_TITLE_SYSINFO);
 
   oled.setCursor(0, 23);
   char buf[24];
@@ -880,7 +917,7 @@ void displayUpdateDeviceInfo(const char *fwVersion, const char *deviceName, cons
   oled.print(buf);
 
   oled.setCursor(0, 33);
-  snprintf(buf, sizeof(buf), "IP: %.16s", (ip && strlen(ip) > 0) ? ip : "Offline");
+  snprintf(buf, sizeof(buf), "IP: %.16s", (ip && strlen(ip) > 0) ? ip : STR_MANUAL_MODE);
   oled.print(buf);
 
   unsigned long mins = uptimeSec / 60;
@@ -948,12 +985,34 @@ void displayScreensaverTick(unsigned long currentMillis, const char *deviceName,
     ssDy = -1;
   }
 
-  // Draw bouncing plate badge with rounded corners
-  oled.drawRoundRect(ssX, ssY, BADGE_W, BADGE_H, 4, SH110X_WHITE);
-  oled.setTextSize(1);
-  oled.setTextColor(SH110X_WHITE);
-  oled.setCursor(ssX + 4, ssY + 4);
-  oled.print("EasySteel");
+  // Alternate every 4 seconds between EasySteel badge and crosshair target
+  bool showCrosshair = ((currentMillis / 4000) % 2) != 0;
+
+  if (showCrosshair)
+  {
+    // Draw precision target crosshair centered inside bouncing area
+    int cx = ssX + BADGE_W / 2;
+    int cy = ssY + BADGE_H / 2;
+
+    oled.drawCircle(cx, cy, 7, SH110X_WHITE);
+    oled.drawCircle(cx, cy, 3, SH110X_WHITE);
+    oled.drawPixel(cx, cy, SH110X_WHITE);
+
+    // Crosshair ticks
+    oled.drawLine(cx - 11, cy, cx - 8, cy, SH110X_WHITE);
+    oled.drawLine(cx + 8, cy, cx + 11, cy, SH110X_WHITE);
+    oled.drawLine(cx, cy - 7, cx, cy - 5, SH110X_WHITE);
+    oled.drawLine(cx, cy + 5, cx, cy + 7, SH110X_WHITE);
+  }
+  else
+  {
+    // Draw bouncing plate badge with rounded corners
+    oled.drawRoundRect(ssX, ssY, BADGE_W, BADGE_H, 4, SH110X_WHITE);
+    oled.setTextSize(1);
+    oled.setTextColor(SH110X_WHITE);
+    oled.setCursor(ssX + 4, ssY + 4);
+    oled.print(STR_APP_NAME);
+  }
 
   // Subtle corner status dots (connection state)
   if (isConnected)

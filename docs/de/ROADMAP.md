@@ -11,17 +11,16 @@ Der ESP32 ist das führende System. Er steuert den gesamten Rundenablauf und ist
 ### 1. Protokoll v1 stabilisieren
 
 - [x] Ereignisse, Pflichtfelder, Einheiten und Zustellklassen als versionierten Vertrag dokumentieren.
-- [ ] Parser- und Kompatibilitätstests mit realistischen Nachrichten ergänzen.
+- [x] Strenge Parser-, Framing-, Validierungs- und Pre-v1-Ablehnungstests mit realistischen Nachrichten ergänzen.
 - [ ] Wiederverbindung, doppelte Ergebnisse und verlorene ACKs als Integrationstest abdecken.
 - [x] Klarstellen: ACK bestätigt nur den Empfang und niemals einen Zustandswechsel der Hardware.
 
 ### 2. Schützen- und Match-Kontext anzeigen
 
-- [ ] Einen nicht steuernden Befehl für Anzeigekontext definieren, zum Beispiel:
-  `{"cmd":"match_info","shooter":"Max Mustermann","stage":"Roundabout","string":3,"maxStrings":5}`
-- [ ] Eingehende Daten begrenzen, validieren und nur für die Anzeige verwenden.
+- [x] Das nicht steuernde Ereignis `match_info` mit opaker `contextId` zur Zuordnung definieren.
+- [x] Strenge Bytegrenzen und druckbare ASCII-Zeichen für Geräte-Anzeigetext durchsetzen.
 - [ ] Schütze, Stage und Durchgang im Standby anzeigen.
-- [ ] Sicherstellen, dass fehlender oder veralteter Kontext den Rundenablauf nicht beeinflusst.
+- [x] Kontext außerhalb von Standby sperren und sicherstellen, dass er Timing oder Wertung nie beeinflusst.
 
 Nicht vorgesehen sind PC-Befehle für `arm`, `disarm`, `start`, `reset`, Zeitkorrektur oder Trefferänderung.
 

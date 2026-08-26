@@ -35,8 +35,13 @@ static unsigned long startTime = 0;                         // Round start times
 static unsigned long endTime = 0;                           // Current displayed time (including penalties)
 static unsigned long baseEndTime = 0;                       // Raw time of the stop plate hit (no penalties)
 static int penaltyCount = 0;                                // Number of +3.0s penalties added manually (max 10)
+static int automaticMissCount = 0;                          // Misses calculated when the round finishes
 static unsigned long lastRunningDispUpdate = 0;             // Running time display update timer
 static int displayCycleIndex = 0;                           // Currently shown split item index (0=overall, >0=split hit)
+static unsigned long lastRoundTimeMs = 0;                   // Last completed round time in ms
+static int lastRoundPenaltyCount = 0;                       // Last completed round penalty count
+static char currentStageName[32] = "";                      // Current stage name
+static char currentContextId[48] = "";                      // Opaque match context echoed with confirmed results
 
 // --- Button press state-tracking for Long-Press detection ---
 
@@ -65,10 +70,11 @@ static int recordedHitCount = 0;
 
 static void renderStandbyScreen()
 {
-  String localIp = networkGetLocalIP();
   displayUpdateStandby(
     networkGetDeviceName().c_str(),
-    localIp.c_str(),
+    currentStageName,
+    lastRoundTimeMs,
+    lastRoundPenaltyCount,
     networkIsServerConnected(),
     menuGetTargetCount(),
     menuGetRoundMode()
@@ -86,6 +92,7 @@ static void resetToStandby()
   recordedHitCount = 0;
   baseEndTime = 0;
   penaltyCount = 0;
+  automaticMissCount = 0;
   displayCycleIndex = 0;
   startHoldActive = false;
   startLongHandled = false;
@@ -203,10 +210,13 @@ static void finishRound(unsigned long totalTimeMs, const char *reason, unsigned 
   currentState = FINISHED;
   baseEndTime = totalTimeMs;
   penaltyCount = missedTargets;
+  automaticMissCount = missedTargets;
   unsigned long calcTime = baseEndTime + (unsigned long)penaltyCount * 3000;
   if (calcTime > ROUND_TIMEOUT_MS) calcTime = ROUND_TIMEOUT_MS;
   endTime = calcTime;
-  roundResultPrepare(endTime, penaltyCount);
+  lastRoundTimeMs = endTime;
+  lastRoundPenaltyCount = penaltyCount;
+  roundResultPrepare(baseEndTime, endTime, automaticMissCount, penaltyCount);
 
   displayCycleIndex = 0;
   startHoldActive = false;
@@ -243,6 +253,7 @@ static void startRound(unsigned long currentMillis)
   recordedHitCount = 0;
   baseEndTime = 0;
   penaltyCount = 0;
+  automaticMissCount = 0;
   sensorIsrResetLastAnyHitTime();
 
   for (int i = 0; i < MAX_TARGETS; i++)
@@ -308,7 +319,12 @@ static void submitFinishedResult()
   RoundResult result = {};
   if (roundResultTake(result))
   {
-    networkSendEvent("end", -1, result.timeMs, result.penaltyCount);
+    networkSendResult(
+      result.rawTimeMs,
+      result.timeMs,
+      result.missCount,
+      result.penaltyCount,
+      currentContextId);
   }
 }
 
@@ -402,6 +418,44 @@ int roundControllerGetTargetCount()
 bool roundControllerIsIdle()
 {
   return currentState == STANDBY;
+}
+
+const char *roundControllerGetStageName()
+{
+  return currentStageName;
+}
+
+const char *roundControllerGetContextId()
+{
+  return currentContextId;
+}
+
+void roundControllerSetMatchInfo(const char *contextId, const char *stage)
+{
+  if (contextId && stage)
+  {
+    snprintf(currentContextId, sizeof(currentContextId), "%s", contextId);
+    snprintf(currentStageName, sizeof(currentStageName), "%s", stage);
+  }
+  else
+  {
+    currentContextId[0] = '\0';
+    currentStageName[0] = '\0';
+  }
+  if (currentState == STANDBY)
+  {
+    renderStandbyScreen();
+  }
+}
+
+unsigned long roundControllerGetLastRoundTimeMs()
+{
+  return lastRoundTimeMs;
+}
+
+int roundControllerGetLastPenaltyCount()
+{
+  return lastRoundPenaltyCount;
 }
 
 void roundControllerTick(unsigned long currentMillis)
@@ -723,7 +777,9 @@ void roundControllerTick(unsigned long currentMillis)
           calcTime = ROUND_TIMEOUT_MS;
         }
         endTime = calcTime;
-        roundResultUpdate(endTime, penaltyCount);
+        lastRoundTimeMs = endTime;
+        lastRoundPenaltyCount = penaltyCount;
+        roundResultUpdate(baseEndTime, endTime, automaticMissCount, penaltyCount);
         displayCycleIndex = 0;
         buzzerPlay(BuzzerPattern::DoubleShort, currentMillis);
         updateFinishedDisplay();
@@ -750,7 +806,9 @@ void roundControllerTick(unsigned long currentMillis)
         calcTime = ROUND_TIMEOUT_MS;
       }
       endTime = calcTime;
-      roundResultUpdate(endTime, penaltyCount);
+      lastRoundTimeMs = endTime;
+      lastRoundPenaltyCount = penaltyCount;
+      roundResultUpdate(baseEndTime, endTime, automaticMissCount, penaltyCount);
       displayCycleIndex = 0;
 
       buzzerPlay(BuzzerPattern::MenuClick, currentMillis);

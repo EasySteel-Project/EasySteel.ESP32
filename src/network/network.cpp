@@ -93,9 +93,25 @@ void networkStartWPS()
   wifiManagerStartWPS();
 }
 
-void networkSendEvent(const char *event, int target, unsigned long timeMs, int missedTargets)
+void networkSendEvent(const char *event, int target, unsigned long timeMs)
 {
-  tcpClientSendEvent(chipId, deviceName, provisioning, event, target, timeMs, missedTargets);
+  tcpClientSendEvent(chipId, deviceName, provisioning, event, target, timeMs);
+}
+
+void networkSendResult(
+  unsigned long rawTimeMs,
+  unsigned long timeMs,
+  int missCount,
+  int penaltyCount,
+  const char *contextId)
+{
+  tcpClientSendResult(
+    provisioning,
+    rawTimeMs,
+    timeMs,
+    missCount,
+    penaltyCount,
+    contextId);
 }
 
 bool networkIsWiFiConnected()
