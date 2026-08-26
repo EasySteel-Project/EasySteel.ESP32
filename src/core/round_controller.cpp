@@ -11,6 +11,8 @@
 #include "round_result.h"
 #include "scoring_rules.h"
 #include "round_state.h"
+#include "remote_control.h"
+#include "training_result.h"
 
 static Button* btnStart = nullptr;
 static Button* btnStop = nullptr;
@@ -40,6 +42,7 @@ static unsigned long lastRunningDispUpdate = 0;             // Running time disp
 static int displayCycleIndex = 0;                           // Currently shown split item index (0=overall, >0=split hit)
 static unsigned long lastRoundTimeMs = 0;                   // Last completed round time in ms
 static int lastRoundPenaltyCount = 0;                       // Last completed round penalty count
+static bool currentRoundIsSoloTraining = false;             // Captured when a round starts with a paired phone and no PC
 static char currentStageName[32] = "";                      // Current stage name
 static char currentContextId[48] = "";                      // Opaque match context echoed with confirmed results
 
@@ -62,7 +65,6 @@ struct HitRecord
   int targetId;
   unsigned long splitTime;
 };
-#define MAX_RECORDED_HITS 16
 static HitRecord recordedHits[MAX_RECORDED_HITS];
 static int recordedHitCount = 0;
 
@@ -100,6 +102,7 @@ static void resetToStandby()
   stopLongHandled = false;
   resetHoldActive = false;
   resetLongHandled = false;
+  currentRoundIsSoloTraining = false;
 
   btnStart->wasPressed();
   btnStart->wasReleased();
@@ -218,6 +221,34 @@ static void finishRound(unsigned long totalTimeMs, const char *reason, unsigned 
   lastRoundPenaltyCount = penaltyCount;
   roundResultPrepare(baseEndTime, endTime, automaticMissCount, penaltyCount);
 
+  bool trainingHitMask[MAX_TARGETS] = {};
+  int trainingTargetIds[MAX_RECORDED_HITS] = {};
+  unsigned long trainingSplitTimes[MAX_RECORDED_HITS] = {};
+  for (int targetIndex = 0; targetIndex < MAX_TARGETS; targetIndex++)
+  {
+    trainingHitMask[targetIndex] = sensorIsrWasHit(targetIndex);
+  }
+  for (int hitIndex = 0; hitIndex < recordedHitCount; hitIndex++)
+  {
+    trainingTargetIds[hitIndex] = recordedHits[hitIndex].targetId;
+    trainingSplitTimes[hitIndex] = recordedHits[hitIndex].splitTime;
+  }
+  if (currentRoundIsSoloTraining)
+  {
+    trainingResultPublish(
+      static_cast<unsigned long>(esp_random()),
+      baseEndTime,
+      endTime,
+      menuGetRoundMode(),
+      menuGetTargetCount(),
+      automaticMissCount,
+      penaltyCount,
+      trainingHitMask,
+      trainingTargetIds,
+      trainingSplitTimes,
+      recordedHitCount);
+  }
+
   displayCycleIndex = 0;
   startHoldActive = false;
   startLongHandled = false;
@@ -316,6 +347,12 @@ static void processHits(unsigned long currentMillis)
 
 static void submitFinishedResult()
 {
+  if (currentRoundIsSoloTraining)
+  {
+    roundResultDiscard();
+    return;
+  }
+
   RoundResult result = {};
   if (roundResultTake(result))
   {
@@ -355,6 +392,9 @@ static void handleStandbyInput(unsigned long currentMillis, bool startPressed)
 
   if (startPressed)
   {
+    currentRoundIsSoloTraining =
+      remoteControlGetState() == RemoteControlState::Paired &&
+      !remoteControlIsPcConnected();
     networkSendEvent("start_pressed", -1, 0);
     unsigned long delayMs = esp_random() % (START_DELAY_MAX_MS - START_DELAY_MIN_MS) + START_DELAY_MIN_MS;
     delayEndTime = currentMillis + delayMs;
@@ -380,6 +420,7 @@ void roundControllerInit(HwButtons& buttons)
   btnStop = &buttons.stop;
   btnReset = &buttons.reset;
   menuInit(buttons);
+  trainingResultReset();
 
   buzzerInit();
   ledsInit();
@@ -477,8 +518,20 @@ void roundControllerTick(unsigned long currentMillis)
   bool startPressed = btnStart->wasPressed();
   bool stopPressed = btnStop->wasPressed();
   bool resetPressed = btnReset->wasPressed();
+  bool hardwareInputReceived = startPressed || stopPressed || resetPressed;
+  bool remoteInputReceived = false;
+  RemoteControlCommand remoteCommand = {RemoteControlAction::Start, 0};
 
-  if (startPressed || stopPressed || resetPressed)
+  if (hardwareInputReceived)
+  {
+    remoteControlClearPendingCommand();
+  }
+  else
+  {
+    remoteInputReceived = remoteControlTakeCommand(remoteCommand);
+  }
+
+  if (hardwareInputReceived || remoteInputReceived)
   {
     lastActivityTime = currentMillis;
     if (screensaverActive)
@@ -486,8 +539,62 @@ void roundControllerTick(unsigned long currentMillis)
       screensaverActive = false;
       displayExitScreensaver();
       renderStandbyScreen();
+      if (hardwareInputReceived)
+      {
+        inputCooldownUntil = currentMillis + INPUT_COOLDOWN_MS;
+        return;
+      }
+    }
+  }
+
+  if (remoteInputReceived)
+  {
+    if (remoteCommand.action == RemoteControlAction::SetMode)
+    {
+      roundControllerSetRoundMode(remoteCommand.value);
       inputCooldownUntil = currentMillis + INPUT_COOLDOWN_MS;
       return;
+    }
+    if (remoteCommand.action == RemoteControlAction::Start)
+    {
+      if (currentState == STANDBY)
+      {
+        startPressed = true;
+      }
+      else if (currentState == FINISHED)
+      {
+        resetToStandby();
+        handleStandbyInput(currentMillis, true);
+        inputCooldownUntil = currentMillis + INPUT_COOLDOWN_MS;
+        return;
+      }
+      else
+      {
+        return;
+      }
+    }
+    else if (remoteCommand.action == RemoteControlAction::Stop)
+    {
+      if (currentState != DELAY && currentState != RUNNING)
+      {
+        return;
+      }
+      stopPressed = true;
+    }
+    else if (remoteCommand.action == RemoteControlAction::Reset)
+    {
+      if (currentState == FINISHED)
+      {
+        resetToStandby();
+        networkSendEvent("reset", -1, 0);
+        inputCooldownUntil = currentMillis + INPUT_COOLDOWN_MS;
+        return;
+      }
+      if (currentState != DELAY && currentState != RUNNING)
+      {
+        return;
+      }
+      resetPressed = true;
     }
   }
 
@@ -826,4 +933,94 @@ void roundControllerTick(unsigned long currentMillis)
     lastActivityTime = currentMillis;
     break;
   }
+}
+
+State roundControllerGetState()
+{
+  return currentState;
+}
+
+int roundControllerGetRoundMode()
+{
+  return menuGetRoundMode();
+}
+
+bool roundControllerSetRoundMode(int mode)
+{
+  if (currentState != STANDBY || mode < 0 || mode > 2)
+  {
+    return false;
+  }
+  menuSetRoundMode(mode);
+  storageSaveRoundMode(mode);
+  renderStandbyScreen();
+  return true;
+}
+
+unsigned long roundControllerGetElapsedMs(unsigned long currentMillis)
+{
+  if (currentState == RUNNING)
+  {
+    if (!menuGetRequireAllTargets() && isStopPlateHitLast())
+    {
+      unsigned long lastStop = getLastStopPlateTime();
+      if (lastStop > 0)
+      {
+        return lastStop;
+      }
+    }
+    return currentMillis >= startTime ? (currentMillis - startTime) : 0;
+  }
+  else if (currentState == FINISHED)
+  {
+    return endTime;
+  }
+  else if (currentState == STANDBY)
+  {
+    return lastRoundTimeMs;
+  }
+  return 0;
+}
+
+int roundControllerGetPenaltyCount()
+{
+  return penaltyCount;
+}
+
+int roundControllerGetAutomaticMissCount()
+{
+  return automaticMissCount;
+}
+
+void roundControllerGetHitMask(bool* outMask, int maxTargets)
+{
+  if (!outMask)
+  {
+    return;
+  }
+  int limit = maxTargets < MAX_TARGETS ? maxTargets : MAX_TARGETS;
+  for (int i = 0; i < limit; i++)
+  {
+    outMask[i] = sensorIsrWasHit(i);
+  }
+}
+
+int roundControllerGetRecordedHits(int* outTargetIds, unsigned long* outSplitTimes, int maxHits)
+{
+  if (!outTargetIds || !outSplitTimes)
+  {
+    return 0;
+  }
+  int count = recordedHitCount < maxHits ? recordedHitCount : maxHits;
+  for (int i = 0; i < count; i++)
+  {
+    outTargetIds[i] = recordedHits[i].targetId;
+    outSplitTimes[i] = recordedHits[i].splitTime;
+  }
+  return count;
+}
+
+bool roundControllerGetLatestTrainingResult(TrainingResult &result)
+{
+  return trainingResultGet(result);
 }

@@ -64,10 +64,11 @@
 #define STR_TITLE_SENSOR_MATRIX "SENSOR LIVE-MATRIX"
 
 #define STR_CAT_TARGETS "1. Spiel & Ziele"
-#define STR_CAT_NETWORK "2. Netzwerk"
-#define STR_CAT_TEST "3. Hardware-Test"
-#define STR_CAT_INFO "4. System-Info"
-#define STR_CAT_EXIT "5. Beenden"
+#define STR_CAT_PHONE_TRAINING "2. Handy-Training"
+#define STR_CAT_NETWORK "3. Netzwerk"
+#define STR_CAT_TEST "4. Hardware-Test"
+#define STR_CAT_INFO "5. System-Info"
+#define STR_CAT_EXIT "6. Beenden"
 
 #define STR_MENU_TITLE_MAIN "HAUPTMENUE (%d/%d)"
 #define STR_MENU_TITLE_TARGETS "SPIEL & ZIELE (%d/%d)"
@@ -135,3 +136,6 @@
 #define STR_WPS_ACTIVE "WPS Aktiv"
 #define STR_PRESS_ROUTER_WPS "WPS druecken"
 #define STR_MANUAL_MODE "Offline"
+#define STR_REMOTE_PAIRING_TITLE "HANDY-TRAINING"
+#define STR_REMOTE_PAIRING_PIN "Pairing-PIN:"
+#define STR_REMOTE_PAIRING_HINT "60s gueltig"

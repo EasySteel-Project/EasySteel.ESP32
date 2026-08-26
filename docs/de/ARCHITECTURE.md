@@ -25,9 +25,19 @@ Die Desktop-Anwendung darf:
 
 Die Desktop-Anwendung darf **unter keinen Umständen** eine Runde starten, scharfschalten (`arm`), stoppen, zurücksetzen, korrigieren oder anderweitig übersteuern. Eine Quittierung (ACK) bestätigt ausschließlich den Transportempfang; sie ist niemals die Erlaubnis für einen Zustandswechsel der Hardware.
 
+## Mobiles Einzeltraining
+
+Ein Handy darf nur im Einzeltraining und nach einer ausdrücklichen physischen Freigabe über den eigenen Eintrag **Handy-Training** im Hauptmenü des ESP32 als nachrangige Fernbedienung arbeiten. Der ESP32 zeigt dafür 60 Sekunden lang eine vierstellige PIN an. Nach erfolgreicher Kopplung erhält genau ein Handy ein flüchtiges Session-Token. Fünf falsche PIN-Eingaben schließen das Pairing-Fenster.
+
+Das gekoppelte Handy darf in `STANDBY` zwischen Wettkampf, Alle Ziele und Drill wechseln, einen Lauf starten, einen Countdown oder laufenden Durchgang stoppen sowie einen Trainingslauf zurücksetzen oder verwerfen. Die Anforderungen gelangen in einen begrenzten Command-Slot und werden von der ESP32-Zustandsmaschine geprüft; der Webserver schreibt niemals direkt Rundenstatus, Zeiten, Treffer oder Wertungsdaten.
+
+Physische Bedienelemente haben immer Vorrang vor einer wartenden Handy-Anforderung. Eine Desktop-Verbindung widerruft die Handy-Session sofort und sperrt neues Pairing. Nach Trennung des Desktops wird die Handy-Steuerung nicht automatisch wiederhergestellt; sie muss erneut physisch freigegeben werden.
+
+Abgeschlossene Einzeltrainingsläufe werden mit stabilen Ergebnis-IDs zum genau einmaligen Kopieren in den LocalStorage dieses Handys bereitgestellt. Diese Einträge sind nicht autoritative Trainingshistorie und gelangen niemals in die offizielle Ergebnis-Outbox.
+
 ## Ausfallverhalten
 
-Der Timer muss bei Ausfall des WLANs oder der Desktop-Anwendung uneingeschränkt einsatzfähig bleiben. Netzwerkaktivitäten dürfen die Zeitmessung zu keinem Zeitpunkt blockieren. Bestätigte Ergebnisse werden im RAM-Puffer für eine spätere Zustellung vorgehalten, der Zustellstatus darf jedoch niemals die gemessene Zeit oder den Hardware-Zustand verändern.
+Der Timer muss bei Ausfall des WLANs, des gekoppelten Handys oder der Desktop-Anwendung uneingeschränkt einsatzfähig bleiben. Netzwerkaktivitäten dürfen die Zeitmessung zu keinem Zeitpunkt blockieren. Bestätigte offizielle Ergebnisse werden im RAM-Puffer für eine spätere Zustellung vorgehalten, der Zustellstatus darf jedoch niemals die gemessene Zeit oder den Hardware-Zustand verändern. Pairing und Handy-Steuerung enden sicher bei Timeout, Neustart, physischer Deaktivierung oder Desktop-Verbindung.
 
 ## Protokollkompatibilität
 

@@ -26,6 +26,7 @@ constexpr int BUZZER_PIN = 23;
 
 // --- Round Constants ---
 constexpr int MAX_TARGETS = 5;
+constexpr int MAX_RECORDED_HITS = 16;
 constexpr unsigned long ROUND_TIMEOUT_MS = 30000;
 constexpr unsigned long MENU_HOLD_MS = 1500;
 constexpr unsigned long START_DELAY_MIN_MS = 1000;

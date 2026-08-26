@@ -8,6 +8,8 @@
 #include "strings.h"
 #include "leds.h"
 #include "sensor_isr.h"
+#include "remote_control.h"
+#include "training_result.h"
 #include <WiFi.h>
 
 static Button* btnStart = nullptr;
@@ -22,6 +24,7 @@ enum MenuState
   MENU_STATE_STOP_MODE_EDIT,
   MENU_STATE_SCREENSAVER_EDIT,
   MENU_STATE_NET_MENU,
+  MENU_STATE_REMOTE_PAIRING,
   MENU_STATE_WIFI_RESET_CONFIRM,
   MENU_STATE_TEST_MENU,
   MENU_STATE_TEST_SENSORS,
@@ -33,7 +36,7 @@ static bool menuActive = false;
 static MenuState currentState = MENU_STATE_MAIN_CAT;
 
 // Selection indices
-static int mainCatIndex = 0;       // 0..4
+static int mainCatIndex = 0;       // 0..5
 static int targetSubIndex = 0;     // 0..3
 static int netItemIndex = 0;       // 0..11
 static int testSelectIndex = 0;    // 0..2
@@ -53,7 +56,7 @@ static unsigned long resetPressStartTime = 0;
 static bool resetWasHeldLong = false;
 
 static constexpr unsigned long HOLD_LONG_PRESS_MS = 1000;
-static constexpr int MAIN_CAT_COUNT = 5;
+static constexpr int MAIN_CAT_COUNT = 6;
 static constexpr int TARGET_SUB_COUNT = 4;
 static constexpr int NET_ITEM_COUNT = 12;
 static constexpr int TEST_SELECT_COUNT = 3;
@@ -142,6 +145,7 @@ static void menuUpdateDisplay()
   {
     const char *mainItems[MAIN_CAT_COUNT] = {
       STR_CAT_TARGETS,
+      STR_CAT_PHONE_TRAINING,
       STR_CAT_NETWORK,
       STR_CAT_TEST,
       STR_CAT_INFO,
@@ -273,6 +277,19 @@ static void menuUpdateDisplay()
     break;
   }
 
+  case MENU_STATE_REMOTE_PAIRING:
+  {
+    char pinValue[16];
+    snprintf(pinValue, sizeof(pinValue), "[ %s ]", remoteControlGetPairingPin());
+    displayUpdateValueEdit(
+      STR_REMOTE_PAIRING_TITLE,
+      STR_REMOTE_PAIRING_PIN,
+      pinValue,
+      STR_REMOTE_PAIRING_HINT,
+      STR_FOOTER_BACK);
+    break;
+  }
+
   case MENU_STATE_WIFI_RESET_CONFIRM:
     displayUpdateConfirmation(STR_CONFIRM_WIFI_TITLE, STR_CONFIRM_WIFI_LINE1, STR_CONFIRM_WIFI_LINE2, STR_FOOTER_CONFIRM);
     break;
@@ -342,6 +359,22 @@ bool menuTick(unsigned long currentMillis)
 
   bool displayNeedsUpdate = false;
 
+  if (currentState == MENU_STATE_REMOTE_PAIRING)
+  {
+    RemoteControlState remoteState = remoteControlGetState();
+    if (remoteState == RemoteControlState::Paired)
+    {
+      buzzerPlay(BuzzerPattern::Confirm, currentMillis);
+      menuActive = false;
+      return false;
+    }
+    if (remoteState != RemoteControlState::Pairing)
+    {
+      currentState = MENU_STATE_MAIN_CAT;
+      displayNeedsUpdate = true;
+    }
+  }
+
   // --- Long Press Navigation (Back / Parent Menu / Exit) ---
   if (resetLongPress)
   {
@@ -356,6 +389,12 @@ bool menuTick(unsigned long currentMillis)
              currentState == MENU_STATE_SCREENSAVER_EDIT)
     {
       currentState = MENU_STATE_TARGET_MENU;
+      displayNeedsUpdate = true;
+    }
+    else if (currentState == MENU_STATE_REMOTE_PAIRING)
+    {
+      remoteControlDisable();
+      currentState = MENU_STATE_MAIN_CAT;
       displayNeedsUpdate = true;
     }
     else if (currentState == MENU_STATE_TARGET_MENU ||
@@ -410,10 +449,26 @@ bool menuTick(unsigned long currentMillis)
         switch (mainCatIndex)
         {
         case 0: currentState = MENU_STATE_TARGET_MENU; targetSubIndex = 0; break;
-        case 1: currentState = MENU_STATE_NET_MENU; netItemIndex = 0; break;
-        case 2: currentState = MENU_STATE_TEST_MENU; testSelectIndex = 0; break;
-        case 3: currentState = MENU_STATE_INFO; break;
-        case 4:
+        case 1:
+          if (remoteControlGetState() == RemoteControlState::Paired)
+          {
+            remoteControlDisable();
+          }
+          else if (networkIsWiFiConnected() && remoteControlBeginPairing(currentMillis))
+          {
+            trainingResultReset();
+            buzzerPlay(BuzzerPattern::Start, currentMillis);
+            currentState = MENU_STATE_REMOTE_PAIRING;
+          }
+          else
+          {
+            buzzerPlay(BuzzerPattern::DoubleShort, currentMillis);
+          }
+          break;
+        case 2: currentState = MENU_STATE_NET_MENU; netItemIndex = 0; break;
+        case 3: currentState = MENU_STATE_TEST_MENU; testSelectIndex = 0; break;
+        case 4: currentState = MENU_STATE_INFO; break;
+        case 5:
           // Exit menu and persist all settings
           storageSaveTargetCount(configuredTargetCount);
           storageSaveRoundMode(configuredRoundMode);
@@ -604,6 +659,16 @@ bool menuTick(unsigned long currentMillis)
         {
           buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
         }
+      }
+      break;
+
+    case MENU_STATE_REMOTE_PAIRING:
+      if (resetShortPress)
+      {
+        remoteControlDisable();
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        currentState = MENU_STATE_MAIN_CAT;
+        displayNeedsUpdate = true;
       }
       break;
 

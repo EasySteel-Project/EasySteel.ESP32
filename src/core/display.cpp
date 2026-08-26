@@ -993,16 +993,18 @@ void displayScreensaverTick(unsigned long currentMillis, const char *deviceName,
     // Draw precision target crosshair centered inside bouncing area
     int cx = ssX + BADGE_W / 2;
     int cy = ssY + BADGE_H / 2;
+    constexpr int r = 6;
 
-    oled.drawCircle(cx, cy, 7, SH110X_WHITE);
-    oled.drawCircle(cx, cy, 3, SH110X_WHITE);
+    // Outer & inner rings + center dot
+    oled.drawCircle(cx, cy, r, SH110X_WHITE);
+    oled.drawCircle(cx, cy, 2, SH110X_WHITE);
     oled.drawPixel(cx, cy, SH110X_WHITE);
 
-    // Crosshair ticks
-    oled.drawLine(cx - 11, cy, cx - 8, cy, SH110X_WHITE);
-    oled.drawLine(cx + 8, cy, cx + 11, cy, SH110X_WHITE);
-    oled.drawLine(cx, cy - 7, cx, cy - 5, SH110X_WHITE);
-    oled.drawLine(cx, cy + 5, cx, cy + 7, SH110X_WHITE);
+    // Perfectly symmetric 4-way crosshair ticks crossing outer ring
+    oled.drawLine(cx - r - 2, cy, cx - r + 1, cy, SH110X_WHITE); // Left
+    oled.drawLine(cx + r - 1, cy, cx + r + 2, cy, SH110X_WHITE); // Right
+    oled.drawLine(cx, cy - r - 2, cx, cy - r + 1, SH110X_WHITE); // Top
+    oled.drawLine(cx, cy + r - 1, cx, cy + r + 2, SH110X_WHITE); // Bottom
   }
   else
   {

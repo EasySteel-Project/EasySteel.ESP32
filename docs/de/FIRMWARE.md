@@ -6,7 +6,7 @@ Dieses Dokument beschreibt Aufbau, Zustände und Bedienung der Firmware. Die ele
 
 ## 1. Systemgrenze
 
-Der ESP32 ist das führende System für Rundenstatus, Startsignal, Zeitmessung, Treffer, Misses, Strafen, Ergebnisbestätigung und Reset. Eine Desktop-Anwendung darf Ereignisse anzeigen, bestätigte Ergebnisse speichern und deren Empfang quittieren. Sie darf keine laufende Runde fernsteuern.
+Der ESP32 ist das führende System für Rundenstatus, Startsignal, Zeitmessung, Treffer, Misses, Strafen, Ergebnisbestätigung und Reset. Eine Desktop-Anwendung darf Ereignisse anzeigen, bestätigte Ergebnisse speichern und deren Empfang quittieren. Sie darf keine laufende Runde fernsteuern. Ein physisch freigegebenes und per PIN gekoppeltes Handy ist eine getrennte Eingabequelle für Einzeltraining: Es darf Start, Stop, Reset und Modusänderungen in Standby anfordern, während der ESP32 jede Zustandsänderung prüft und ausführt.
 
 Die Hardware bleibt ohne WLAN und ohne Desktop-Anwendung bedienbar. Netzwerkfehler dürfen die Zeitmessung nicht blockieren.
 
@@ -34,9 +34,11 @@ Die Hardware bleibt ohne WLAN und ohne Desktop-Anwendung bedienbar. Netzwerkfehl
 | [`round_state`](../../src/core/round_state.cpp) | Kleine, nativ testbare Zustandsübergänge einschließlich Fehlstart |
 | [`scoring_rules`](../../src/core/scoring_rules.cpp) | Zielauswahl und Berechnung fehlender Zwischenziele |
 | [`round_result`](../../src/core/round_result.cpp) | Genau einmal bestätigbares oder verwerfbares Ergebnis |
+| [`training_result`](../../src/core/training_result.cpp) | Stabile flüchtige Snapshots für nicht autoritative, handy-lokale Einzeltrainingshistorie |
 | [`sensor_isr`](../../src/hardware/sensor_isr.cpp) | Interrupts, Entprellung, Crosstalk-Sperre und chronologische Hitqueue |
 | [`display`](../../src/core/display.cpp) | SH1106-Ausgabe, Splits, Menü und Bildschirmschoner |
 | [`network`](../../src/network/network.cpp) | WLAN-Modi und Koordination von HTTP, OTA und TCP |
+| [`remote_control`](../../src/network/remote_control.cpp) | Physische PIN-Freigabe, Ein-Handy-Session, PC-Priorität, Timeouts und begrenzter Command-Slot |
 | [`tcp_client`](../../src/network/tcp_client.cpp) | Nicht blockierende Übertragung, Reconnect und Ergebnis-ACK |
 | [`storage`](../../src/core/storage.cpp) | Persistente Geräteeinstellungen in ESP32 Preferences/NVS |
 
@@ -45,14 +47,14 @@ Die Hardware bleibt ohne WLAN und ohne Desktop-Anwendung bedienbar. Netzwerkfehl
 ```mermaid
 stateDiagram-v2
     [*] --> STANDBY
-    STANDBY --> DELAY : Start-Taster
+    STANDBY --> DELAY : Start-Taster / gekoppeltes Handy
     STANDBY --> MENU : Stop + Reset 1,5 s
     DELAY --> RUNNING : Zufallsdelay abgelaufen
     DELAY --> FALSE_START : Sensortreffer vor Startsignal
-    DELAY --> STANDBY : Stop oder Reset
+    DELAY --> STANDBY : Stop- oder Reset-Eingabe
     FALSE_START --> STANDBY : 1,2 s abgelaufen oder Reset
-    RUNNING --> FINISHED : Modusbedingung, manueller Stopp oder Timeout
-    RUNNING --> STANDBY : Reset
+    RUNNING --> FINISHED : Modusbedingung, Stop oder Timeout
+    RUNNING --> STANDBY : Reset-Eingabe
     FINISHED --> STANDBY : Ergebnis bestätigen oder verwerfen
     MENU --> STANDBY : Menü verlassen
 ```
@@ -61,6 +63,7 @@ stateDiagram-v2
 
 - Zeigt Gerätename / Stage-Name, aktiven Rundenmodus, Bereit-Status und die letzte Runden- bzw. Reaktionszeit. Netzwerk- und IP-Diagnosedaten sind im Gerätemenü abrufbar (**Menü → Netzwerk** / **Menü → Info**).
 - Start beginnt einen zufälligen Vorlauf von 1 bis 4 Sekunden.
+- Ein gekoppeltes Einzeltrainings-Handy darf den Rundenmodus wählen oder Start anfordern. Start aus `FINISHED` verwirft das wartende offizielle Ergebnis und beginnt sofort den nächsten lokalen Trainingslauf.
 - Stop und Reset gemeinsam für 1,5 Sekunden öffnen das Gerätemenü.
 - Der Bildschirmschoner dimmt das OLED, ohne WLAN oder TCP zu trennen.
 
@@ -92,6 +95,8 @@ Das Ergebnis bleibt zunächst ausschließlich auf dem Gerät zur Prüfung:
 - Im Reaktions-Drill bestätigt Grün das Ergebnis und startet direkt den nächsten Versuch.
 
 Die angezeigte Ergebniszeit einschließlich Strafen ist auf 30 Sekunden begrenzt. Läuft der konfigurierte Bildschirmschoner-Timeout in `FINISHED` ab, wird das unbestätigte Ergebnis verworfen und nach `STANDBY` gewechselt.
+
+Für eine Runde, die bei gekoppeltem Einzeltrainings-Handy gestartet wurde, veröffentlicht der ESP32 eine stabile flüchtige Trainingsresultat-ID mit Roh-/Endzeit, Modus, Misses, Treffermaske und chronologischen Splits. Das Handy speichert jede ID genau einmal im LocalStorage. Mobiles Start beginnt den nächsten Lauf, mobiles Reset kehrt zu `STANDBY` zurück; keine der beiden Aktionen stellt das wartende Ergebnis in die offizielle Ergebnis-Outbox.
 
 ## 4. Rundenmodi
 
@@ -125,6 +130,16 @@ Die Hauptschleife entnimmt Ereignisse chronologisch und übernimmt LED, Buzzer, 
 
 Der Standard-TCP-Port ist `53421`. Ereignisse und Bestätigungen sind in [PROTOCOL.md](PROTOCOL.md) beschrieben.
 
+### Mobiles Einzeltraining
+
+1. In `STANDBY` am ESP32 **Menü → Handy-Training** öffnen.
+2. Das OLED zeigt 60 Sekunden lang eine vierstellige PIN.
+3. Die PIN im Trainings-Dashboard eingeben. Fünf falsche Versuche schließen das Pairing-Fenster.
+4. Genau ein Handy erhält ein ausschließlich im RAM gehaltenes Session-Token. Dashboard-Polling erneuert die 30-sekündige Inaktivitätsfrist.
+5. Physische Eingaben löschen einen wartenden Handy-Befehl. Eine Desktop-Verbindung widerruft das Handy sofort; nach Trennung ist eine neue physische Freigabe erforderlich.
+
+Das Dashboard erlaubt Start in `STANDBY` und `FINISHED`, Stop in `DELAY` und `RUNNING`, Reset in `DELAY`, `RUNNING` und `FINISHED` sowie die Moduswahl nur in `STANDBY`. HTTP-Handler prüfen und puffern genau einen begrenzten Befehl; der normale Round-Controller-Tick führt ihn aus. Ist **Beep** aktiviert, bildet das Handy den Übergang von `DELAY` zu `RUNNING` mit einem Startton nach. Durch das Polling kann dieser Ton bis zu einem Polling-Intervall verzögert sein; das tatsächliche Startsignal gibt deshalb der ESP32-Buzzer vor.
+
 ### Übertragungsverhalten
 
 - Live-Ereignisse verwenden eine statische Sendewarteschlange mit 16 Einträgen und werden bei Trennung nicht dauerhaft gespeichert.
@@ -138,6 +153,7 @@ Der Standard-TCP-Port ist `53421`. Ereignisse und Bestätigungen sind in [PROTOC
 - Das Provisioning-Portal läuft nur auf dem passwortgeschützten Geräte-AP.
 - Browser-OTA ist während des Provisionings deaktiviert.
 - Einstellungen und Browser-OTA im STA-Modus verwenden HTTP Basic Auth mit Benutzer `admin` und Gerätepasswort.
+- Die Einzeltrainings-Steuerung erfordert eine physische vierstellige PIN-Freigabe und anschließend ein starkes flüchtiges Session-Token; das Token gilt für genau ein Handy und wird niemals im NVS gespeichert.
 - OTA wird nur in `STANDBY` verarbeitet.
 - Watchdog und Sensorinterrupts werden während notwendiger Flashoperationen kontrolliert behandelt und auf Fehlerpfaden wiederhergestellt.
 

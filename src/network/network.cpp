@@ -3,6 +3,7 @@
 #include "web_server.h"
 #include "tcp_client.h"
 #include "offline_buffer.h"
+#include "remote_control.h"
 #include "storage.h"
 #include "display.h"
 
@@ -23,6 +24,7 @@ bool networkIsProvisioning()
 
 void networkInit(Button *abortBtn)
 {
+  remoteControlInit();
   wifiManagerInit(chipId, apPassword);
 
   storageLoadDevice(deviceName, serverIP, tcpPort, chipId);
@@ -86,6 +88,7 @@ void networkTick(unsigned long currentMillis)
   wifiManagerTick(currentMillis, provisioning, wpsPending, chipId, apPassword);
   webServerTick();
   tcpClientTick(currentMillis, provisioning, serverIP, tcpPort, chipId, deviceName);
+  remoteControlSetPcConnected(networkIsServerConnected());
 }
 
 void networkStartWPS()

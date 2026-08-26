@@ -1,5 +1,7 @@
 #include "web_server.h"
 #include "web_pages.h"
+#include "training_page.h"
+#include "remote_control.h"
 #include "storage.h"
 #include "display.h"
 #include "tcp_client.h"
@@ -11,8 +13,9 @@
 #include <WebServer.h>
 #include <ArduinoOTA.h>
 #include <Update.h>
+#include <ArduinoJson.h>
+#include <stdarg.h>
 #include "watchdog.h"
-
 
 static WebServer *httpServer = nullptr;
 static bool wpsPending = false;
@@ -106,7 +109,6 @@ static void sendTemplate(const char* tpl, const TemplateVar* vars, size_t varCou
 
   httpServer->sendContent(""); // End chunked transfer
 }
-
 
 static void handleResetWifi()
 {
@@ -219,7 +221,7 @@ static void handleSaveSettings(String& deviceName, String& serverIP, uint16_t& t
   networkSendEvent("settings_changed", -1, 0);
 
   const TemplateVar vars[] = {
-    {"MESSAGE", "Settings saved.<br><a href='/' style='color:#4ecca3'>Back to Settings</a>"}
+    {"MESSAGE", "Settings saved.<br><a href='/settings' style='color:#4ecca3'>Back to Settings</a>"}
   };
   sendTemplate(SUCCESS_PAGE, vars, 1);
 
@@ -235,6 +237,268 @@ static void handleSaveSettings(String& deviceName, String& serverIP, uint16_t& t
     Serial.println("TCP server settings changed. Disconnecting existing socket...");
     tcpClientDisconnect();
   }
+}
+
+// --- REST API Handlers for the paired solo-training dashboard ---
+
+static bool appendJson(char *buffer, size_t bufferSize, int &offset, const char *format, ...)
+{
+  if (offset < 0 || static_cast<size_t>(offset) >= bufferSize)
+  {
+    return false;
+  }
+
+  va_list args;
+  va_start(args, format);
+  int written = vsnprintf(buffer + offset, bufferSize - static_cast<size_t>(offset), format, args);
+  va_end(args);
+  if (written < 0 || static_cast<size_t>(written) >= bufferSize - static_cast<size_t>(offset))
+  {
+    buffer[bufferSize - 1] = '\0';
+    return false;
+  }
+
+  offset += written;
+  return true;
+}
+
+static const char *remoteControlStateName(RemoteControlState state)
+{
+  switch (state)
+  {
+    case RemoteControlState::Pairing: return "pairing";
+    case RemoteControlState::Paired: return "paired";
+    case RemoteControlState::BlockedByPc: return "blocked";
+    case RemoteControlState::Disabled: return "disabled";
+  }
+  return "disabled";
+}
+
+static void handleApiState()
+{
+  if (!httpServer) return;
+
+  unsigned long currentMillis = millis();
+  State state = roundControllerGetState();
+  const char* stateStr = "STANDBY";
+  switch (state)
+  {
+    case STANDBY: stateStr = "STANDBY"; break;
+    case DELAY: stateStr = "DELAY"; break;
+    case RUNNING: stateStr = "RUNNING"; break;
+    case FINISHED: stateStr = "FINISHED"; break;
+    case MENU: stateStr = "MENU"; break;
+    case FALSE_START: stateStr = "FALSE_START"; break;
+  }
+
+  String token = httpServer->header("X-EasySteel-Token");
+  bool isController = remoteControlAuthorize(token.c_str(), currentMillis);
+  RemoteControlState remoteState = remoteControlGetState();
+  unsigned long timeMs = roundControllerGetElapsedMs(currentMillis);
+  int mode = roundControllerGetRoundMode();
+  int targetCount = roundControllerGetTargetCount();
+  int penaltyCount = roundControllerGetPenaltyCount();
+  int autoMissCount = roundControllerGetAutomaticMissCount();
+
+  bool hitMask[MAX_TARGETS] = {false};
+  roundControllerGetHitMask(hitMask, MAX_TARGETS);
+
+  int targetIds[MAX_RECORDED_HITS];
+  unsigned long splitTimes[MAX_RECORDED_HITS];
+  int hitCount = roundControllerGetRecordedHits(targetIds, splitTimes, MAX_RECORDED_HITS);
+
+  char jsonBuf[2048];
+  int offset = 0;
+  bool complete = appendJson(
+    jsonBuf,
+    sizeof(jsonBuf),
+    offset,
+    "{\"state\":\"%s\",\"timeMs\":%lu,\"mode\":%d,\"targetCount\":%d,\"penaltyCount\":%d,\"missCount\":%d,\"remoteState\":\"%s\",\"isController\":%s,\"pcConnected\":%s,\"hitMask\":[%s,%s,%s,%s,%s],\"hits\":[",
+    stateStr,
+    timeMs,
+    mode,
+    targetCount,
+    penaltyCount,
+    autoMissCount,
+    remoteControlStateName(remoteState),
+    isController ? "true" : "false",
+    remoteControlIsPcConnected() ? "true" : "false",
+    hitMask[0] ? "true" : "false",
+    hitMask[1] ? "true" : "false",
+    hitMask[2] ? "true" : "false",
+    hitMask[3] ? "true" : "false",
+    hitMask[4] ? "true" : "false"
+  );
+
+  for (int i = 0; complete && i < hitCount; i++)
+  {
+    complete = appendJson(jsonBuf, sizeof(jsonBuf), offset,
+      "%s{\"target\":%d,\"splitMs\":%lu}",
+      (i > 0 ? "," : ""),
+      targetIds[i],
+      splitTimes[i]
+    );
+  }
+
+  complete = complete && appendJson(jsonBuf, sizeof(jsonBuf), offset, "],\"trainingResult\":");
+  TrainingResult trainingResult = {};
+  if (complete && isController && roundControllerGetLatestTrainingResult(trainingResult))
+  {
+    complete = appendJson(
+      jsonBuf,
+      sizeof(jsonBuf),
+      offset,
+      "{\"id\":\"%s\",\"rawTimeMs\":%lu,\"timeMs\":%lu,\"mode\":%d,\"targetCount\":%d,\"missCount\":%d,\"penaltyCount\":%d,\"hitMask\":[%s,%s,%s,%s,%s],\"hits\":[",
+      trainingResult.id,
+      trainingResult.rawTimeMs,
+      trainingResult.timeMs,
+      trainingResult.mode,
+      trainingResult.targetCount,
+      trainingResult.missCount,
+      trainingResult.penaltyCount,
+      trainingResult.hitMask[0] ? "true" : "false",
+      trainingResult.hitMask[1] ? "true" : "false",
+      trainingResult.hitMask[2] ? "true" : "false",
+      trainingResult.hitMask[3] ? "true" : "false",
+      trainingResult.hitMask[4] ? "true" : "false");
+    for (int hitIndex = 0; complete && hitIndex < trainingResult.hitCount; hitIndex++)
+    {
+      complete = appendJson(
+        jsonBuf,
+        sizeof(jsonBuf),
+        offset,
+        "%s{\"target\":%d,\"splitMs\":%lu}",
+        hitIndex > 0 ? "," : "",
+        trainingResult.hits[hitIndex].targetId,
+        trainingResult.hits[hitIndex].splitTimeMs);
+    }
+    complete = complete && appendJson(jsonBuf, sizeof(jsonBuf), offset, "]}");
+  }
+  else if (complete)
+  {
+    complete = appendJson(jsonBuf, sizeof(jsonBuf), offset, "null");
+  }
+  complete = complete && appendJson(jsonBuf, sizeof(jsonBuf), offset, "}");
+
+  if (!complete)
+  {
+    httpServer->send(500, "application/json", "{\"error\":\"State response overflow\"}");
+    return;
+  }
+  httpServer->send(200, "application/json", jsonBuf);
+}
+
+static void handleApiPair()
+{
+  if (!httpServer) return;
+
+  String body = httpServer->arg("plain");
+  JsonDocument request;
+  DeserializationError error = deserializeJson(request, body);
+  if (error)
+  {
+    httpServer->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
+    return;
+  }
+
+  const char *pin = request["pin"] | "";
+  char token[REMOTE_SESSION_TOKEN_LENGTH + 1] = "";
+  RemotePairResult result = remoteControlPair(pin, millis(), token, sizeof(token));
+  if (result == RemotePairResult::Success)
+  {
+    char response[96];
+    snprintf(response, sizeof(response), "{\"success\":true,\"token\":\"%s\"}", token);
+    httpServer->send(200, "application/json", response);
+    return;
+  }
+  if (result == RemotePairResult::AttemptsExceeded)
+  {
+    httpServer->send(429, "application/json", "{\"success\":false,\"error\":\"Pairing closed after five attempts\"}");
+    return;
+  }
+  if (result == RemotePairResult::InvalidPin)
+  {
+    httpServer->send(403, "application/json", "{\"success\":false,\"error\":\"Invalid PIN\"}");
+    return;
+  }
+  httpServer->send(409, "application/json", "{\"success\":false,\"error\":\"Pairing is not active\"}");
+}
+
+static void handleApiAction()
+{
+  if (!httpServer) return;
+
+  if (httpServer->method() != HTTP_POST)
+  {
+    httpServer->send(405, "application/json", "{\"success\":false,\"error\":\"Method Not Allowed\"}");
+    return;
+  }
+
+  String token = httpServer->header("X-EasySteel-Token");
+  unsigned long currentMillis = millis();
+  if (!remoteControlAuthorize(token.c_str(), currentMillis))
+  {
+    httpServer->send(401, "application/json", "{\"success\":false,\"error\":\"Phone is not paired\"}");
+    return;
+  }
+
+  String body = httpServer->arg("plain");
+  JsonDocument req;
+  DeserializationError error = deserializeJson(req, body);
+  if (error)
+  {
+    httpServer->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
+    return;
+  }
+
+  String action = req["action"] | "";
+  State state = roundControllerGetState();
+  RemoteControlAction remoteAction = RemoteControlAction::Start;
+  int actionValue = 0;
+  bool recognized = true;
+
+  if (action == "start")
+  {
+    remoteAction = RemoteControlAction::Start;
+  }
+  else if (action == "stop")
+  {
+    remoteAction = RemoteControlAction::Stop;
+  }
+  else if (action == "reset")
+  {
+    remoteAction = RemoteControlAction::Reset;
+  }
+  else if (action == "mode")
+  {
+    remoteAction = RemoteControlAction::SetMode;
+    actionValue = req["mode"] | -1;
+  }
+  else
+  {
+    recognized = false;
+  }
+
+  if (!recognized || !remoteControlActionAllowed(remoteAction, state, actionValue))
+  {
+    httpServer->send(409, "application/json", "{\"success\":false,\"error\":\"Action is not allowed in the current state\"}");
+    return;
+  }
+
+  if (!remoteControlQueueCommand(remoteAction, actionValue))
+  {
+    httpServer->send(409, "application/json", "{\"success\":false,\"error\":\"Command slot is busy\"}");
+    return;
+  }
+  httpServer->send(202, "application/json", "{\"success\":true}");
+}
+
+static void registerCommonApiRoutes()
+{
+  if (!httpServer) return;
+  httpServer->on("/api/state", HTTP_GET, handleApiState);
+  httpServer->on("/api/pair", HTTP_POST, handleApiPair);
+  httpServer->on("/api/action", HTTP_POST, handleApiAction);
 }
 
 void webServerStop()
@@ -303,7 +567,6 @@ static void handleScanWifi()
   WiFi.scanDelete();
   httpServer->send(200, "application/json", json);
 }
-
 
 static void registerUpdateHandler()
 {
@@ -405,6 +668,7 @@ static void registerUpdateHandler()
 void webServerInitAP(const String& deviceName, const String& apPassword)
 {
   webServerStop();
+  remoteControlDisable();
   adminAuthRequired = false;
   adminPassword = apPassword;
 
@@ -415,7 +679,7 @@ void webServerInitAP(const String& deviceName, const String& apPassword)
   httpServer->on("/wps", HTTP_GET, handleWPS);
   httpServer->on("/reset-wifi", HTTP_POST, handleResetWifi);
 
-  // Captive Portal redirect: Send any unknown paths to the root "/" setup page
+  // Captive Portal redirect: Send unknown paths to setup
   httpServer->onNotFound([]() {
     if (httpServer) {
       Serial.printf("[HTTP] 404 Redirect: %s -> /\n", httpServer->uri().c_str());
@@ -434,14 +698,28 @@ void webServerInitSTA(String& deviceName, String& serverIP, uint16_t& tcpPort, c
   adminPassword = apPassword;
 
   httpServer = new WebServer(80);
-  httpServer->on("/", HTTP_GET, [&deviceName, &serverIP, &tcpPort]() { handleSettings(deviceName, serverIP, tcpPort); });
+  const char *headerKeys[] = {"X-EasySteel-Token"};
+  httpServer->collectHeaders(headerKeys, 1);
+
+  // Serve Solo Training Dashboard on root and /training
+  httpServer->on("/", HTTP_GET, []() {
+    if (httpServer) httpServer->send(200, "text/html", TRAINING_PAGE);
+  });
+  httpServer->on("/training", HTTP_GET, []() {
+    if (httpServer) httpServer->send(200, "text/html", TRAINING_PAGE);
+  });
+
+  // Settings page
+  httpServer->on("/settings", HTTP_GET, [&deviceName, &serverIP, &tcpPort]() { handleSettings(deviceName, serverIP, tcpPort); });
   httpServer->on("/save-settings", HTTP_POST, [&deviceName, &serverIP, &tcpPort]() { handleSaveSettings(deviceName, serverIP, tcpPort); });
   httpServer->on("/reset-wifi", HTTP_POST, handleResetWifi);
+
+  registerCommonApiRoutes();
   registerUpdateHandler();
   httpServer->begin();
 
-  Serial.println("Settings page at http://" + WiFi.localIP().toString() + "/");
-
+  Serial.println("Solo Training Dashboard at http://" + WiFi.localIP().toString() + "/");
+  Serial.println("Settings page at http://" + WiFi.localIP().toString() + "/settings");
 
   ArduinoOTA.setHostname(deviceName.c_str());
   if (apPassword.length() > 0)
@@ -480,6 +758,10 @@ void webServerInitSTA(String& deviceName, String& serverIP, uint16_t& tcpPort, c
 
 void webServerTick()
 {
+  unsigned long currentMillis = millis();
+  remoteControlSetPcConnected(networkIsServerConnected());
+  remoteControlTick(currentMillis);
+
   if (httpServer)
   {
     httpServer->handleClient();

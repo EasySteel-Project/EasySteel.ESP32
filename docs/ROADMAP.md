@@ -4,7 +4,7 @@
 
 ## Core Architectural Guardrail
 
-The ESP32 is the authoritative system. It manages the entire round lifecycle and is the sole source of truth for round state, timing, hits, penalties, result confirmation, and reset. The Windows desktop application observes events, stores confirmed scores, and manages shooters and tournament schedules. Network disconnection must never impede hardware timing operations.
+The ESP32 is the authoritative system. It manages the entire round lifecycle and is the sole source of truth for round state, timing, hits, penalties, official result confirmation, and reset. The Windows desktop application observes events, stores confirmed scores, and manages shooters and tournament schedules. A physically released and paired phone may send bounded Solo Training input requests, but the ESP32 validates every transition. Network disconnection must never impede hardware timing operations.
 
 ## High Priority
 
@@ -22,10 +22,13 @@ The ESP32 is the authoritative system. It manages the entire round lifecycle and
 - [ ] Render shooter, stage, and string on the OLED standby screen.
 - [x] Lock context outside Standby and guarantee that it never alters round timing or scoring.
 
-Commands for remote `arm`, `disarm`, `start`, `reset`, time correction, or penalty modification remain explicitly excluded.
+Desktop commands for remote `arm`, `disarm`, `start`, `reset`, time correction, or penalty modification remain explicitly excluded. The separate paired Solo Training interface supports only Start, Stop, Reset, and idle mode selection and never produces official result deliveries.
 
 ### 3. Operational Reliability
 
+- [x] Add physically released four-digit pairing for exactly one Solo Training phone.
+- [x] Enforce hardware > desktop > phone priority and revoke mobile control on desktop connection.
+- [x] Publish stable non-authoritative training result IDs for exactly-once phone LocalStorage history.
 - [ ] Test power loss, Wi-Fi outage, and server crashes during all round states.
 - [ ] Define visual OLED warning for full RAM outbox (serial warning and oldest-drop are implemented).
 - [ ] Establish hardware-in-the-loop test procedures for buttons, sensor ordering, and timing accuracy.

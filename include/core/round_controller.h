@@ -2,6 +2,8 @@
 
 #include "config.h"
 #include "hw_context.h"
+#include "round_state.h"
+#include "training_result.h"
 
 /// Initialize round hardware and controller state.
 void roundControllerInit(HwButtons& buttons);
@@ -21,6 +23,9 @@ void roundControllerSetScreensaverTimeout(int minutes);
 /// Return true while the device is safely idle for configuration or firmware maintenance.
 bool roundControllerIsIdle();
 
+/// Get current round state.
+State roundControllerGetState();
+
 /// Get the current stage name (or empty string if none).
 const char *roundControllerGetStageName();
 
@@ -35,3 +40,27 @@ unsigned long roundControllerGetLastRoundTimeMs();
 
 /// Get the last completed round penalty count.
 int roundControllerGetLastPenaltyCount();
+
+/// Get the active round mode (0=Competition, 1=All Targets, 2=Reaction Drill).
+int roundControllerGetRoundMode();
+
+/// Set active round mode while idle. Returns true on success.
+bool roundControllerSetRoundMode(int mode);
+
+/// Get the current elapsed or final time in milliseconds.
+unsigned long roundControllerGetElapsedMs(unsigned long currentMillis);
+
+/// Get current penalty count in FINISHED state.
+int roundControllerGetPenaltyCount();
+
+/// Get calculated automatic misses.
+int roundControllerGetAutomaticMissCount();
+
+/// Copy live hit mask of targets.
+void roundControllerGetHitMask(bool* outMask, int maxTargets);
+
+/// Copy recorded chronological hits. Returns number of hits copied.
+int roundControllerGetRecordedHits(int* outTargetIds, unsigned long* outSplitTimes, int maxHits);
+
+/// Copy the latest completed non-authoritative solo-training run.
+bool roundControllerGetLatestTrainingResult(TrainingResult &result);

@@ -4,7 +4,7 @@
 
 ## Architektur-Leitplanke
 
-Der ESP32 ist das führende System. Er steuert den gesamten Rundenablauf und ist die alleinige Quelle für Zustand, Zeitmessung, Treffer, Strafen, Ergebnisbestätigung und Reset. Die Windows-Anwendung zeigt Ereignisse an, speichert Ergebnisse und verwaltet Schützen und Turniere. Ein Verbindungsabbruch darf die Hardware nicht am Betrieb hindern.
+Der ESP32 ist das führende System. Er steuert den gesamten Rundenablauf und ist die alleinige Quelle für Zustand, Zeitmessung, Treffer, Strafen, offizielle Ergebnisbestätigung und Reset. Die Windows-Anwendung zeigt Ereignisse an, speichert Ergebnisse und verwaltet Schützen und Turniere. Ein physisch freigegebenes und gekoppeltes Handy darf begrenzte Eingabeanforderungen für das Einzeltraining senden; jede Zustandsänderung wird jedoch vom ESP32 geprüft. Ein Verbindungsabbruch darf die Hardware nicht am Betrieb hindern.
 
 ## Hohe Priorität
 
@@ -22,10 +22,13 @@ Der ESP32 ist das führende System. Er steuert den gesamten Rundenablauf und ist
 - [ ] Schütze, Stage und Durchgang im Standby anzeigen.
 - [x] Kontext außerhalb von Standby sperren und sicherstellen, dass er Timing oder Wertung nie beeinflusst.
 
-Nicht vorgesehen sind PC-Befehle für `arm`, `disarm`, `start`, `reset`, Zeitkorrektur oder Trefferänderung.
+Nicht vorgesehen sind PC-Befehle für `arm`, `disarm`, `start`, `reset`, Zeitkorrektur oder Trefferänderung. Die getrennte, gekoppelte Einzeltrainings-Oberfläche unterstützt ausschließlich Start, Stop, Reset und die Moduswahl in Standby und erzeugt niemals offizielle Ergebniszustellungen.
 
 ### 3. Hardwarebetrieb absichern
 
+- [x] Physisch freigegebenes vierstelliges Pairing für genau ein Einzeltrainings-Handy ergänzen.
+- [x] Priorität Hardware > Desktop > Handy durchsetzen und Handy-Steuerung bei Desktop-Verbindung widerrufen.
+- [x] Stabile, nicht autoritative Trainingsresultat-IDs für genau einmalige LocalStorage-Historie bereitstellen.
 - [ ] Stromausfall, WLAN-Ausfall und Server-Neustart in allen Rundenphasen testen.
 - [ ] Sichtbare Gerätewarnung bei vollem RAM-Outbox-Puffer festlegen; serieller Hinweis und Ersetzen des ältesten Ergebnisses sind implementiert.
 - [ ] Hardware-in-the-loop-Testplan für Taster, Sensorreihenfolge und Zeitmessung erstellen.
