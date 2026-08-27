@@ -6,7 +6,7 @@
 #include "menu.h"
 #include "network.h"
 #include "storage.h"
-#include "strings.h"
+#include "ui_strings.h"
 #include "sensor_isr.h"
 #include "round_result.h"
 #include "scoring_rules.h"

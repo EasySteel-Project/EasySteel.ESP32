@@ -8,7 +8,7 @@
 #include "network.h"
 #include "sensor_isr.h"
 #include "round_controller.h"
-#include "strings.h"
+#include "ui_strings.h"
 
 #include <WiFi.h>
 #include <WebServer.h>

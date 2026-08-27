@@ -1,5 +1,5 @@
 #include "display.h"
-#include "strings.h"
+#include "ui_strings.h"
 #include "buzzer.h"
 #include "leds.h"
 #include "watchdog.h"

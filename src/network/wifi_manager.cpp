@@ -1,7 +1,7 @@
 #include "wifi_manager.h"
 #include "web_server.h"
 #include "display.h"
-#include "strings.h"
+#include "ui_strings.h"
 #include "storage.h"
 #include "config.h"
 #include "button.h"

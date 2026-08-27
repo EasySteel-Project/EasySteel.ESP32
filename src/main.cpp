@@ -2,7 +2,7 @@
 #include "display.h"
 #include "network.h"
 #include "round_controller.h"
-#include "strings.h"
+#include "ui_strings.h"
 #include "button.h"
 #include "buzzer.h"
 #include "hw_context.h"

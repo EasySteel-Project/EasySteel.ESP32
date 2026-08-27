@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "hw_context.h"
+#include "i18n.h"
 
 /// Initialize menu with button references.
 void menuInit(HwButtons& buttons);

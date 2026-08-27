@@ -5,7 +5,7 @@
 #include "display.h"
 #include "network.h"
 #include "storage.h"
-#include "strings.h"
+#include "ui_strings.h"
 #include "leds.h"
 #include "sensor_isr.h"
 #include "remote_control.h"
