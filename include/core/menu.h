@@ -37,3 +37,10 @@ int menuGetScreensaverTimeout();
 
 /// Set the screensaver timeout in minutes.
 void menuSetScreensaverTimeout(int minutes);
+
+/// Get the configured language.
+Language menuGetLanguage();
+
+/// Set the language (used during initialization from storage).
+void menuSetLanguage(Language lang);
+

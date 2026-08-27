@@ -80,6 +80,16 @@ void test_storage_screensaver_timeout(void) {
     TEST_ASSERT_EQUAL(0, storageLoadScreensaverTimeout());
 }
 
+void test_storage_language(void) {
+    TEST_ASSERT_EQUAL(0, storageLoadLanguage()); // Default 0 (DE)
+
+    storageSaveLanguage(1); // EN
+    TEST_ASSERT_EQUAL(1, storageLoadLanguage());
+
+    storageSaveLanguage(0); // DE
+    TEST_ASSERT_EQUAL(0, storageLoadLanguage());
+}
+
 void test_storage_round_mode(void) {
 
     TEST_ASSERT_EQUAL(0, storageLoadRoundMode()); // Default 0 (Wettkampf)
@@ -103,5 +113,6 @@ int main(int argc, char **argv) {
     RUN_TEST(test_storage_require_all_targets);
     RUN_TEST(test_storage_round_mode);
     RUN_TEST(test_storage_screensaver_timeout);
+    RUN_TEST(test_storage_language);
     return UNITY_END();
 }

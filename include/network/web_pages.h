@@ -5,7 +5,7 @@
 // --- WiFi Setup Page (AP mode) ---
 const char WIFI_SETUP_PAGE[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
-<html>
+<html lang="%LANG%">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -133,7 +133,7 @@ const char WIFI_SETUP_PAGE[] PROGMEM = R"rawliteral(
 // --- WPS Status Page ---
 const char WPS_PAGE[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
-<html>
+<html lang="%LANG%">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -174,7 +174,7 @@ const char WPS_PAGE[] PROGMEM = R"rawliteral(
 // --- Success Page (shared) ---
 const char SUCCESS_PAGE[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
-<html>
+<html lang="%LANG%">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -208,7 +208,7 @@ const char SUCCESS_PAGE[] PROGMEM = R"rawliteral(
 // --- Device Settings Page (STA mode) ---
 const char SETTINGS_PAGE[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
-<html>
+<html lang="%LANG%">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">

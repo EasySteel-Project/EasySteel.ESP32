@@ -114,6 +114,7 @@ static void sendTemplate(const char* tpl, const TemplateVar* vars, size_t varCou
 static void sendSuccessPage(const char *message)
 {
   const TemplateVar vars[] = {
+    {"LANG", i18nGetLanguageCode()},
     {"WEB_SUCCESS_PAGE_TITLE", STR_WEB_SUCCESS_PAGE_TITLE},
     {"WEB_SUCCESS_HEADING", STR_WEB_SUCCESS_HEADING},
     {"MESSAGE", message}
@@ -139,6 +140,7 @@ static void sendJsonError(int statusCode, const char *message, bool includeSucce
 static void handleTraining()
 {
   const TemplateVar vars[] = {
+    {"LANG", i18nGetLanguageCode()},
     {"TRAINING_PAGE_TITLE", STR_TRAINING_PAGE_TITLE},
     {"APP_NAME", STR_APP_NAME},
     {"TRAINING_WAKE_OFF", STR_TRAINING_WAKE_OFF},
@@ -163,6 +165,16 @@ static void handleTraining()
     {"TRAINING_RESET", STR_TRAINING_RESET},
     {"TRAINING_CURRENT_SPLITS", STR_TRAINING_CURRENT_SPLITS},
     {"TRAINING_NO_HITS", STR_TRAINING_NO_HITS},
+    {"TRAINING_STAGE", STR_TRAINING_STAGE},
+    {"TRAINING_LOCAL_ONLY", STR_TRAINING_LOCAL_ONLY},
+    {"TRAINING_STAGE_5_TO_GO", STR_TRAINING_STAGE_5_TO_GO},
+    {"TRAINING_STAGE_SHOWDOWN", STR_TRAINING_STAGE_SHOWDOWN},
+    {"TRAINING_STAGE_SMOKE_AND_HOPE", STR_TRAINING_STAGE_SMOKE_AND_HOPE},
+    {"TRAINING_STAGE_OUTER_LIMITS", STR_TRAINING_STAGE_OUTER_LIMITS},
+    {"TRAINING_STAGE_ACCELERATOR", STR_TRAINING_STAGE_ACCELERATOR},
+    {"TRAINING_STAGE_THE_PENDULUM", STR_TRAINING_STAGE_THE_PENDULUM},
+    {"TRAINING_STAGE_SPEED_OPTION", STR_TRAINING_STAGE_SPEED_OPTION},
+    {"TRAINING_STAGE_ROUNDABOUT", STR_TRAINING_STAGE_ROUNDABOUT},
     {"TRAINING_HISTORY_LOCAL", STR_TRAINING_HISTORY_LOCAL},
     {"TRAINING_RUNS", STR_TRAINING_RUNS},
     {"TRAINING_ALL", STR_TRAINING_ALL},
@@ -223,6 +235,7 @@ static void handleWifiSetup(const String& deviceName)
 {
   Serial.println("[HTTP] GET / - serving WiFi setup page");
   const TemplateVar vars[] = {
+    {"LANG", i18nGetLanguageCode()},
     {"WEB_WIFI_SETUP_TITLE", STR_WEB_WIFI_SETUP_TITLE},
     {"WEB_WIFI_SETUP_HEADING", STR_WEB_WIFI_SETUP_HEADING},
     {"WEB_WIFI_SETUP_SUBTITLE", STR_WEB_WIFI_SETUP_SUBTITLE},
@@ -275,6 +288,7 @@ static void handleWPS()
   if (!httpServer) return;
 
   const TemplateVar vars[] = {
+    {"LANG", i18nGetLanguageCode()},
     {"WEB_WPS_PAGE_TITLE", STR_WEB_WPS_PAGE_TITLE},
     {"WEB_WPS_ACTIVE", STR_WEB_WPS_ACTIVE},
     {"WEB_WPS_WAITING", STR_WEB_WPS_WAITING}
@@ -289,6 +303,7 @@ static void handleSettings(const String& deviceName, const String& serverIP, uin
     return;
 
   const TemplateVar vars[] = {
+    {"LANG", i18nGetLanguageCode()},
     {"WEB_SETTINGS_TITLE", STR_WEB_SETTINGS_TITLE},
     {"WEB_SETTINGS_HEADING", STR_WEB_SETTINGS_HEADING},
     {"WEB_SETTINGS_SUBTITLE", STR_WEB_SETTINGS_SUBTITLE},

@@ -146,3 +146,18 @@ void storageSaveScreensaverTimeout(int minutes)
   prefs.putInt("screensaver", minutes);
   prefs.end();
 }
+
+int storageLoadLanguage()
+{
+  prefs.begin("easysteel", true);
+  int lang = prefs.getInt("lang", 0); // Default 0 (DE)
+  prefs.end();
+  return lang;
+}
+
+void storageSaveLanguage(int language)
+{
+  prefs.begin("easysteel", false);
+  prefs.putInt("lang", language);
+  prefs.end();
+}

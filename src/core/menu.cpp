@@ -23,6 +23,7 @@ enum MenuState
   MENU_STATE_TARGET_COUNT_EDIT,
   MENU_STATE_STOP_MODE_EDIT,
   MENU_STATE_SCREENSAVER_EDIT,
+  MENU_STATE_LANGUAGE_EDIT,
   MENU_STATE_NET_MENU,
   MENU_STATE_REMOTE_PAIRING,
   MENU_STATE_WIFI_RESET_CONFIRM,
@@ -37,7 +38,7 @@ static MenuState currentState = MENU_STATE_MAIN_CAT;
 
 // Selection indices
 static int mainCatIndex = 0;       // 0..5
-static int targetSubIndex = 0;     // 0..3
+static int targetSubIndex = 0;     // 0..4
 static int netItemIndex = 0;       // 0..11
 static int testSelectIndex = 0;    // 0..2
 
@@ -45,6 +46,7 @@ static int configuredTargetCount = MAX_TARGETS;
 static bool configuredRequireAllTargets = false;
 static int configuredRoundMode = 0;
 static int configuredScreensaverTimeout = 5;
+static Language configuredLanguage = Language::DE;
 
 
 // Test execution variables
@@ -57,7 +59,7 @@ static bool resetWasHeldLong = false;
 
 static constexpr unsigned long HOLD_LONG_PRESS_MS = 1000;
 static constexpr int MAIN_CAT_COUNT = 6;
-static constexpr int TARGET_SUB_COUNT = 4;
+static constexpr int TARGET_SUB_COUNT = 5;
 static constexpr int NET_ITEM_COUNT = 12;
 static constexpr int TEST_SELECT_COUNT = 3;
 
@@ -123,6 +125,18 @@ void menuSetScreensaverTimeout(int minutes)
   configuredScreensaverTimeout = minutes;
 }
 
+Language menuGetLanguage()
+{
+  return configuredLanguage;
+}
+
+void menuSetLanguage(Language lang)
+{
+  configuredLanguage = lang;
+  i18nSetLanguage(lang);
+}
+
+
 
 static void stopRunningTest()
 {
@@ -159,10 +173,19 @@ static void menuUpdateDisplay()
 
   case MENU_STATE_TARGET_MENU:
   {
+    char item1[24];
+    snprintf(item1, sizeof(item1), "1. %s", STR_TARGET_COUNT);
+    char item2[24];
+    snprintf(item2, sizeof(item2), "2. %s", STR_STOP_MODE);
+    char item3[24];
+    snprintf(item3, sizeof(item3), "3. %s", STR_SCREENSAVER);
+    char item4[24];
+    snprintf(item4, sizeof(item4), "4. %s", STR_LANGUAGE);
     const char *targetItems[TARGET_SUB_COUNT] = {
-      "1. " STR_TARGET_COUNT,
-      "2. " STR_STOP_MODE,
-      "3. " STR_SCREENSAVER,
+      item1,
+      item2,
+      item3,
+      item4,
       STR_BACK
     };
     char title[24];
@@ -199,6 +222,15 @@ static void menuUpdateDisplay()
       snprintf(valStr, sizeof(valStr), STR_VALUE_MINUTES_FORMAT, configuredScreensaverTimeout);
     }
     displayUpdateValueEdit(STR_TITLE_SCREENSAVER, STR_PARAM_SCREENSAVER, valStr, STR_HINT_SCREENSAVER, STR_FOOTER_NAV);
+    break;
+  }
+
+  case MENU_STATE_LANGUAGE_EDIT:
+  {
+    const char *langStr = (configuredLanguage == Language::EN) ? STR_LANG_EN : STR_LANG_DE;
+    char valStr[16];
+    snprintf(valStr, sizeof(valStr), STR_VALUE_TEXT_FORMAT, langStr);
+    displayUpdateValueEdit(STR_TITLE_LANGUAGE, STR_PARAM_LANGUAGE, valStr, "DE / EN", STR_FOOTER_NAV);
     break;
   }
 
@@ -296,9 +328,13 @@ static void menuUpdateDisplay()
 
   case MENU_STATE_TEST_MENU:
   {
+    char test1[24];
+    snprintf(test1, sizeof(test1), "1. %s", STR_TEST_SENSORS);
+    char test2[24];
+    snprintf(test2, sizeof(test2), "2. %s", STR_TEST_LEDS_BUZZER);
     const char *testItems[TEST_SELECT_COUNT] = {
-      "1. " STR_TEST_SENSORS,
-      "2. " STR_TEST_LEDS_BUZZER,
+      test1,
+      test2,
       STR_BACK
     };
     char title[24];
@@ -386,7 +422,8 @@ bool menuTick(unsigned long currentMillis)
     }
     else if (currentState == MENU_STATE_TARGET_COUNT_EDIT ||
              currentState == MENU_STATE_STOP_MODE_EDIT ||
-             currentState == MENU_STATE_SCREENSAVER_EDIT)
+             currentState == MENU_STATE_SCREENSAVER_EDIT ||
+             currentState == MENU_STATE_LANGUAGE_EDIT)
     {
       currentState = MENU_STATE_TARGET_MENU;
       displayNeedsUpdate = true;
@@ -417,6 +454,7 @@ bool menuTick(unsigned long currentMillis)
       storageSaveRoundMode(configuredRoundMode);
       storageSaveRequireAllTargets(configuredRoundMode == 1);
       storageSaveScreensaverTimeout(configuredScreensaverTimeout);
+      storageSaveLanguage((int)configuredLanguage);
       roundControllerSetScreensaverTimeout(configuredScreensaverTimeout);
       buzzerPlay(BuzzerPattern::Start, currentMillis);
       menuActive = false;
@@ -474,6 +512,7 @@ bool menuTick(unsigned long currentMillis)
           storageSaveRoundMode(configuredRoundMode);
           storageSaveRequireAllTargets(configuredRoundMode == 1);
           storageSaveScreensaverTimeout(configuredScreensaverTimeout);
+          storageSaveLanguage((int)configuredLanguage);
           roundControllerSetScreensaverTimeout(configuredScreensaverTimeout);
           buzzerPlay(BuzzerPattern::Start, currentMillis);
           menuActive = false;
@@ -505,7 +544,8 @@ bool menuTick(unsigned long currentMillis)
         case 0: currentState = MENU_STATE_TARGET_COUNT_EDIT; break;
         case 1: currentState = MENU_STATE_STOP_MODE_EDIT; break;
         case 2: currentState = MENU_STATE_SCREENSAVER_EDIT; break;
-        case 3: currentState = MENU_STATE_MAIN_CAT; break;
+        case 3: currentState = MENU_STATE_LANGUAGE_EDIT; break;
+        case 4: currentState = MENU_STATE_MAIN_CAT; break;
         }
         displayNeedsUpdate = true;
       }
@@ -595,6 +635,24 @@ bool menuTick(unsigned long currentMillis)
       }
       break;
     }
+
+    case MENU_STATE_LANGUAGE_EDIT:
+      if (startPressed || stopPressed)
+      {
+        configuredLanguage = (configuredLanguage == Language::DE) ? Language::EN : Language::DE;
+        i18nSetLanguage(configuredLanguage);
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        displayNeedsUpdate = true;
+      }
+      if (resetShortPress)
+      {
+        storageSaveLanguage((int)configuredLanguage);
+        i18nSetLanguage(configuredLanguage);
+        buzzerPlay(BuzzerPattern::Start, currentMillis);
+        currentState = MENU_STATE_TARGET_MENU;
+        displayNeedsUpdate = true;
+      }
+      break;
 
 
     case MENU_STATE_NET_MENU:

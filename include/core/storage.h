@@ -21,3 +21,5 @@ int storageLoadRoundMode();
 void storageSaveRoundMode(int mode);
 int storageLoadScreensaverTimeout();
 void storageSaveScreensaverTimeout(int minutes);
+int storageLoadLanguage();
+void storageSaveLanguage(int language);

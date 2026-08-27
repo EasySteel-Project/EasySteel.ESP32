@@ -1,288 +1,306 @@
 #pragma once
 
+#include "i18n.h"
+
 // --- General & System ---
-#define STR_APP_NAME "EasySteel"
-#define STR_BOOTING "Booten..."
-#define STR_RESET "RESET"
-#define STR_WIFI_CLEARED "WLAN geloescht"
-#define STR_FIRMWARE_VER "EasySteel v1.2.0"
-#define STR_SUBTITLE_TIMING_SYSTEM "TIMING SYSTEM"
+#define STR_APP_NAME i18n().appName
+#define STR_BOOTING i18n().booting
+#define STR_RESET i18n().reset
+#define STR_WIFI_CLEARED i18n().wifiCleared
+#define STR_FIRMWARE_VER i18n().firmwareVer
+#define STR_SUBTITLE_TIMING_SYSTEM i18n().subtitleTimingSystem
 
 // --- Round States & Alerts ---
-#define STR_READY "Bereit"
-#define STR_READY_FOR_START "Bereit fuer Start"
-#define STR_PRESS_START "Start druecken"
-#define STR_GO "SHOOT!"
-#define STR_FINISH "FERTIG!"
-#define STR_PREPARE "STANDBY"
-#define STR_WAIT_FOR_BEEP "Ton abwarten..."
-#define STR_TIMEOUT "TIMEOUT!"
-#define STR_FALSE_START "FEHLSTART"
-#define STR_FALSE_START_HINT "Vor dem Signal!"
-#define STR_REACTION "REAKTION"
-#define STR_REACTION_TIME_SUBTITLE "Reaktionszeit!"
-#define STR_DRILL_HINT "Stop plate treffen"
+#define STR_READY i18n().ready
+#define STR_READY_FOR_START i18n().readyForStart
+#define STR_PRESS_START i18n().pressStart
+#define STR_GO i18n().go
+#define STR_FINISH i18n().finish
+#define STR_PREPARE i18n().prepare
+#define STR_WAIT_FOR_BEEP i18n().waitForBeep
+#define STR_TIMEOUT i18n().timeout
+#define STR_FALSE_START i18n().falseStart
+#define STR_FALSE_START_HINT i18n().falseStartHint
+#define STR_REACTION i18n().reaction
+#define STR_REACTION_TIME_SUBTITLE i18n().reactionTimeSubtitle
+#define STR_DRILL_HINT i18n().drillHint
 
 // --- Target & Split Formatting ---
-#define STR_STOP_PLATE "Stop plate"
-#define STR_TARGET_N "Ziel %d"
-#define STR_HIT_STOP "H%d: STOP"
-#define STR_HIT_TARGET "H%d: ZIEL %d"
-#define STR_HIT_STOP_FORMAT "Hit %d/%d (Stop)"
-#define STR_HIT_TARGET_FORMAT "Hit %d/%d (Ziel %d)"
-#define STR_SPLIT_PREFIX "Split: +"
-#define STR_PENALTY_MISS_FORMAT "+%ds Miss"
-#define STR_LAST_TIME_FORMAT "Letzte: %lu.%03lus"
-#define STR_LAST_TIME_PENALTY_FORMAT "Zeit: %lu.%03lus (+%ds)"
-#define STR_TIME_FORMAT "Zeit: %lu.%03lus"
-#define STR_RUNNING_TIME_FORMAT "...%lu.%lus"
-#define STR_UNIT_SECONDS "s"
-#define STR_TIME_VALUE_FORMAT "%lu.%03lu"
-#define STR_RUNNING_TIME_VALUE_FORMAT "%lu.%lu"
-#define STR_INITIAL_TIME_VALUE "0.0"
+#define STR_STOP_PLATE i18n().stopPlate
+#define STR_TARGET_N i18n().targetN
+#define STR_HIT_STOP i18n().hitStop
+#define STR_HIT_TARGET i18n().hitTarget
+#define STR_HIT_STOP_FORMAT i18n().hitStopFormat
+#define STR_HIT_TARGET_FORMAT i18n().hitTargetFormat
+#define STR_SPLIT_PREFIX i18n().splitPrefix
+#define STR_PENALTY_MISS_FORMAT i18n().penaltyMissFormat
+#define STR_LAST_TIME_FORMAT i18n().lastTimeFormat
+#define STR_LAST_TIME_PENALTY_FORMAT i18n().lastTimePenaltyFormat
+#define STR_TIME_FORMAT i18n().timeFormat
+#define STR_RUNNING_TIME_FORMAT i18n().runningTimeFormat
+#define STR_UNIT_SECONDS i18n().unitSeconds
+#define STR_TIME_VALUE_FORMAT i18n().timeValueFormat
+#define STR_RUNNING_TIME_VALUE_FORMAT i18n().runningTimeValueFormat
+#define STR_INITIAL_TIME_VALUE i18n().initialTimeValue
 
 // --- Mode Tags ---
-#define STR_MODE_TAG_DRILL "Drill"
-#define STR_MODE_TAG_ALL "Alle"
-#define STR_MODE_TAG_WK "WK"
-#define STR_MODE_TAG_TARGET_COUNT_FORMAT "%s(%dZ)"
+#define STR_MODE_TAG_DRILL i18n().modeTagDrill
+#define STR_MODE_TAG_ALL i18n().modeTagAll
+#define STR_MODE_TAG_WK i18n().modeTagWk
+#define STR_MODE_TAG_TARGET_COUNT_FORMAT i18n().modeTagTargetCountFormat
 
 // --- Footers ---
-#define STR_FOOTER_NAV "^:St v:Sp OK:Rs"
-#define STR_FOOTER_NAV_RUN "^:St v:Sp Run:Rs"
-#define STR_FOOTER_EDIT "-:Sp +:St OK:Rs"
-#define STR_FOOTER_CONFIRM "Start:JA Stop:NEIN"
-#define STR_FOOTER_BACK "Reset: Zurueck"
-#define STR_FOOTER_MATRIX "Reset: Clear/Exit"
-#define STR_FOOTER_FINISHED "St:Split Sp:+3s Rs:OK"
-#define STR_FOOTER_SPLIT "St:Weiter  Rs:Zurueck"
-#define STR_FOOTER_STANDBY "Start:Los  Menu:Sp+Rs"
-#define STR_FOOTER_STANDBY_DRILL "St:Drill  Menu:Sp+Rs"
-#define STR_FOOTER_REACTION "Start:Neu  Reset:Ende"
-#define STR_BACK "< Zurueck"
-#define STR_MENU_PREVIOUS_GLYPH "^"
-#define STR_MENU_SELECTED_GLYPH ">"
-#define STR_MENU_NEXT_GLYPH "v"
+#define STR_FOOTER_NAV i18n().footerNav
+#define STR_FOOTER_NAV_RUN i18n().footerNavRun
+#define STR_FOOTER_EDIT i18n().footerEdit
+#define STR_FOOTER_CONFIRM i18n().footerConfirm
+#define STR_FOOTER_BACK i18n().footerBack
+#define STR_FOOTER_MATRIX i18n().footerMatrix
+#define STR_FOOTER_FINISHED i18n().footerFinished
+#define STR_FOOTER_SPLIT i18n().footerSplit
+#define STR_FOOTER_STANDBY i18n().footerStandby
+#define STR_FOOTER_STANDBY_DRILL i18n().footerStandbyDrill
+#define STR_FOOTER_REACTION i18n().footerReaction
+#define STR_BACK i18n().back
+#define STR_MENU_PREVIOUS_GLYPH i18n().menuPreviousGlyph
+#define STR_MENU_SELECTED_GLYPH i18n().menuSelectedGlyph
+#define STR_MENU_NEXT_GLYPH i18n().menuNextGlyph
 
 // --- Menu Categories & Titles ---
-#define STR_TITLE_MENU "MENUE"
-#define STR_TITLE_SETTING "EINSTELLUNG"
-#define STR_TITLE_CONFIRM "BESTAETIGUNG"
-#define STR_TITLE_SYSINFO "SYSTEM-INFO"
-#define STR_TITLE_SENSOR_MATRIX "SENSOR LIVE-MATRIX"
+#define STR_TITLE_MENU i18n().titleMenu
+#define STR_TITLE_SETTING i18n().titleSetting
+#define STR_TITLE_CONFIRM i18n().titleConfirm
+#define STR_TITLE_SYSINFO i18n().titleSysinfo
+#define STR_TITLE_SENSOR_MATRIX i18n().titleSensorMatrix
 
-#define STR_CAT_TARGETS "1. Spiel & Ziele"
-#define STR_CAT_PHONE_TRAINING "2. Handy-Training"
-#define STR_CAT_NETWORK "3. Netzwerk"
-#define STR_CAT_TEST "4. Hardware-Test"
-#define STR_CAT_INFO "5. System-Info"
-#define STR_CAT_EXIT "6. Beenden"
+#define STR_CAT_TARGETS i18n().catTargets
+#define STR_CAT_PHONE_TRAINING i18n().catPhoneTraining
+#define STR_CAT_NETWORK i18n().catNetwork
+#define STR_CAT_TEST i18n().catTest
+#define STR_CAT_INFO i18n().catInfo
+#define STR_CAT_EXIT i18n().catExit
 
-#define STR_MENU_TITLE_MAIN "HAUPTMENUE (%d/%d)"
-#define STR_MENU_TITLE_TARGETS "SPIEL & ZIELE (%d/%d)"
-#define STR_MENU_TITLE_NETWORK "NETZWERK (%d/%d)"
-#define STR_MENU_TITLE_TESTS "TESTS (%d/%d)"
+#define STR_MENU_TITLE_MAIN i18n().menuTitleMain
+#define STR_MENU_TITLE_TARGETS i18n().menuTitleTargets
+#define STR_MENU_TITLE_NETWORK i18n().menuTitleNetwork
+#define STR_MENU_TITLE_TESTS i18n().menuTitleTests
 
-#define STR_TARGET_COUNT "Zielanzahl"
-#define STR_STOP_MODE "Spiel-Modus"
-#define STR_MODE_COMPETITION "Wettkampf"
-#define STR_MODE_ALL_TARGETS "Alle Ziele"
-#define STR_MODE_REACTION "Reaktion"
-#define STR_SCREENSAVER "Auto-Standby"
-#define STR_TIMEOUT_OFF "Aus"
+#define STR_TARGET_COUNT i18n().targetCount
+#define STR_STOP_MODE i18n().stopMode
+#define STR_MODE_COMPETITION i18n().modeCompetition
+#define STR_MODE_ALL_TARGETS i18n().modeAllTargets
+#define STR_MODE_REACTION i18n().modeReaction
+#define STR_SCREENSAVER i18n().screensaver
+#define STR_TIMEOUT_OFF i18n().timeoutOff
+#define STR_LANGUAGE i18n().language
 
-#define STR_TITLE_TARGET_COUNT "ZIELANZAHL"
-#define STR_PARAM_TARGET_COUNT "Ziele (1..5):"
-#define STR_TITLE_GAME_MODE "SPIEL-MODUS"
-#define STR_PARAM_MODE "Modus:"
-#define STR_HINT_GAME_MODE "WK / Alle / Reaktion"
-#define STR_TITLE_SCREENSAVER "AUTO-STANDBY"
-#define STR_PARAM_SCREENSAVER "Auto-Standby:"
-#define STR_HINT_SCREENSAVER "Aus/2/5/15/30 Min"
-#define STR_VALUE_INT_FORMAT "[ %d ]"
-#define STR_VALUE_TEXT_FORMAT "[ %s ]"
-#define STR_VALUE_MINUTES_FORMAT "[ %d Min ]"
+#define STR_TITLE_TARGET_COUNT i18n().titleTargetCount
+#define STR_PARAM_TARGET_COUNT i18n().paramTargetCount
+#define STR_TITLE_GAME_MODE i18n().titleGameMode
+#define STR_PARAM_MODE i18n().paramMode
+#define STR_HINT_GAME_MODE i18n().hintGameMode
+#define STR_TITLE_SCREENSAVER i18n().titleScreensaver
+#define STR_PARAM_SCREENSAVER i18n().paramScreensaver
+#define STR_HINT_SCREENSAVER i18n().hintScreensaver
+#define STR_TITLE_LANGUAGE i18n().titleLanguage
+#define STR_PARAM_LANGUAGE i18n().paramLanguage
+#define STR_LANG_DE i18n().langDe
+#define STR_LANG_EN i18n().langEn
+
+#define STR_VALUE_INT_FORMAT i18n().valueIntFormat
+#define STR_VALUE_TEXT_FORMAT i18n().valueTextFormat
+#define STR_VALUE_MINUTES_FORMAT i18n().valueMinutesFormat
 
 // --- Hardware Test ---
-#define STR_TEST_SENSORS "Sensor-Matrix"
-#define STR_TEST_LEDS_BUZZER "LED & Buzzer"
-#define STR_TITLE_LED_BUZZER "LED & BUZZER"
-#define STR_PARAM_LED_BUZZER "Blinker aktiv..."
-#define STR_HINT_LED_BUZZER "Start/Stop=Ton"
-#define STR_SENSOR_MATRIX_HINT "Ziele anklopfen..."
-#define STR_SENSOR_LAST_STOP "Letzter: Stop plate"
-#define STR_SENSOR_LAST_TARGET "Letzter: ZIEL %d"
-#define STR_STOP_PLATE_SHORT "ST"
+#define STR_TEST_SENSORS i18n().testSensors
+#define STR_TEST_LEDS_BUZZER i18n().testLedsBuzzer
+#define STR_TITLE_LED_BUZZER i18n().titleLedBuzzer
+#define STR_PARAM_LED_BUZZER i18n().paramLedBuzzer
+#define STR_HINT_LED_BUZZER i18n().hintLedBuzzer
+#define STR_SENSOR_MATRIX_HINT i18n().sensorMatrixHint
+#define STR_SENSOR_LAST_STOP i18n().sensorLastStop
+#define STR_SENSOR_LAST_TARGET i18n().sensorLastTarget
+#define STR_STOP_PLATE_SHORT i18n().stopPlateShort
 
 // --- Network & WiFi ---
-#define STR_WIFI_STATUS "Status"
-#define STR_STATUS_CONNECTED "Verbunden"
-#define STR_STATUS_DISCONNECTED "Getrennt"
-#define STR_STATUS_AP "AP-Modus"
-#define STR_SSID "SSID"
-#define STR_LOCAL_IP "Lokale IP"
-#define STR_SERVER_IP "Server IP"
-#define STR_PORT "TCP Port"
-#define STR_DEVICE_NAME "Name"
-#define STR_ACTION_WIFI_CONNECT "WLAN verbinden"
-#define STR_ACTION_AP_MODE "WLAN Setup (AP)"
-#define STR_ACTION_WPS "WPS verbinden"
-#define STR_ACTION_WIFI_RESET "WLAN loeschen"
-#define STR_CONNECT_OK "WLAN Verbunden!"
-#define STR_CONNECT_FAILED "Nicht erreichbar"
-#define STR_CANCEL_HINT "[Stop: Abbrechen]"
-#define STR_WLAN_OK "WLAN OK"
-#define STR_WLAN_ERROR "WLAN FEHLER"
+#define STR_WIFI_STATUS i18n().wifiStatus
+#define STR_STATUS_CONNECTED i18n().statusConnected
+#define STR_STATUS_DISCONNECTED i18n().statusDisconnected
+#define STR_STATUS_AP i18n().statusAp
+#define STR_SSID i18n().ssid
+#define STR_LOCAL_IP i18n().localIp
+#define STR_SERVER_IP i18n().serverIp
+#define STR_PORT i18n().port
+#define STR_DEVICE_NAME i18n().deviceName
+#define STR_ACTION_WIFI_CONNECT i18n().actionWifiConnect
+#define STR_ACTION_AP_MODE i18n().actionApMode
+#define STR_ACTION_WPS i18n().actionWps
+#define STR_ACTION_WIFI_RESET i18n().actionWifiReset
+#define STR_CONNECT_OK i18n().connectOk
+#define STR_CONNECT_FAILED i18n().connectFailed
+#define STR_CANCEL_HINT i18n().cancelHint
+#define STR_WLAN_OK i18n().wlanOk
+#define STR_WLAN_ERROR i18n().wlanError
 
-#define STR_CONFIRM_WIFI_TITLE "WLAN loeschen?"
-#define STR_CONFIRM_WIFI_LINE1 "Alle WLAN-Daten"
-#define STR_CONFIRM_WIFI_LINE2 "werden entfernt!"
+#define STR_CONFIRM_WIFI_TITLE i18n().confirmWifiTitle
+#define STR_CONFIRM_WIFI_LINE1 i18n().confirmWifiLine1
+#define STR_CONFIRM_WIFI_LINE2 i18n().confirmWifiLine2
 
-#define STR_WIFI_SETUP "WLAN Setup"
-#define STR_CONNECTING "Verbinden..."
-#define STR_WPS_OK "WPS OK"
-#define STR_SAVED "Gespeichert!"
-#define STR_RESTARTING "Neustart..."
-#define STR_WPS_FAILED "WPS Fehlgeschlagen"
-#define STR_WPS_TIMEOUT "WPS Timeout"
-#define STR_WPS_ACTIVE "WPS Aktiv"
-#define STR_PRESS_ROUTER_WPS "WPS druecken"
-#define STR_MANUAL_MODE "Offline"
-#define STR_WIFI_STOP_OFFLINE "Stop: Offline"
-#define STR_WIFI_AP_NAME_FORMAT "WLAN: %s"
-#define STR_WIFI_IP_FORMAT "IP: %s"
-#define STR_WIFI_PASSWORD_FORMAT "PW: %s"
-#define STR_NETWORK_STATUS_FORMAT "Status: %s"
-#define STR_NETWORK_SSID_FORMAT "SSID: %.14s"
-#define STR_NETWORK_IP_FORMAT "IP: %.16s"
-#define STR_NETWORK_SERVER_FORMAT "Server: %.12s"
-#define STR_NETWORK_PORT_FORMAT "Port: %u"
-#define STR_NETWORK_NAME_FORMAT "Name: %.14s"
-#define STR_NETWORK_ID_FORMAT "ID: %.16s"
-#define STR_MENU_ACTION_FORMAT "> %s"
-#define STR_NETWORK_AP_GLYPH "AP"
-#define STR_NETWORK_OFFLINE_GLYPH "x"
-#define STR_DEVICE_INFO_FW_FORMAT "FW: %.16s"
-#define STR_DEVICE_INFO_IP_FORMAT "IP: %.16s"
-#define STR_DEVICE_INFO_UPTIME_FORMAT "Up: %lum%02lus ID: %.6s"
-#define STR_FIRMWARE_FALLBACK "v1.0"
-#define STR_VALUE_UNAVAILABLE "-"
-#define STR_REMOTE_PAIRING_TITLE "HANDY-TRAINING"
-#define STR_REMOTE_PAIRING_PIN "Pairing-PIN:"
-#define STR_REMOTE_PAIRING_HINT "60s gueltig"
+#define STR_WIFI_SETUP i18n().wifiSetup
+#define STR_CONNECTING i18n().connecting
+#define STR_WPS_OK i18n().wpsOk
+#define STR_SAVED i18n().saved
+#define STR_RESTARTING i18n().restarting
+#define STR_WPS_FAILED i18n().wpsFailed
+#define STR_WPS_TIMEOUT i18n().wpsTimeout
+#define STR_WPS_ACTIVE i18n().wpsActive
+#define STR_PRESS_ROUTER_WPS i18n().pressRouterWps
+#define STR_MANUAL_MODE i18n().manualMode
+#define STR_WIFI_STOP_OFFLINE i18n().wifiStopOffline
+#define STR_WIFI_AP_NAME_FORMAT i18n().wifiApNameFormat
+#define STR_WIFI_IP_FORMAT i18n().wifiIpFormat
+#define STR_WIFI_PASSWORD_FORMAT i18n().wifiPasswordFormat
+#define STR_NETWORK_STATUS_FORMAT i18n().networkStatusFormat
+#define STR_NETWORK_SSID_FORMAT i18n().networkSsidFormat
+#define STR_NETWORK_IP_FORMAT i18n().networkIpFormat
+#define STR_NETWORK_SERVER_FORMAT i18n().networkServerFormat
+#define STR_NETWORK_PORT_FORMAT i18n().networkPortFormat
+#define STR_NETWORK_NAME_FORMAT i18n().networkNameFormat
+#define STR_NETWORK_ID_FORMAT i18n().networkIdFormat
+#define STR_MENU_ACTION_FORMAT i18n().menuActionFormat
+#define STR_NETWORK_AP_GLYPH i18n().networkApGlyph
+#define STR_NETWORK_OFFLINE_GLYPH i18n().networkOfflineGlyph
+#define STR_DEVICE_INFO_FW_FORMAT i18n().deviceInfoFwFormat
+#define STR_DEVICE_INFO_IP_FORMAT i18n().deviceInfoIpFormat
+#define STR_DEVICE_INFO_UPTIME_FORMAT i18n().deviceInfoUptimeFormat
+#define STR_FIRMWARE_FALLBACK i18n().firmwareFallback
+#define STR_VALUE_UNAVAILABLE i18n().valueUnavailable
+#define STR_REMOTE_PAIRING_TITLE i18n().remotePairingTitle
+#define STR_REMOTE_PAIRING_PIN i18n().remotePairingPin
+#define STR_REMOTE_PAIRING_HINT i18n().remotePairingHint
 
 // --- WiFi Setup & Settings Web UI ---
-#define STR_WEB_WIFI_SETUP_TITLE "EasySteel WiFi Setup"
-#define STR_WEB_WIFI_SETUP_HEADING "&#9881; EasySteel WiFi Setup"
-#define STR_WEB_WIFI_SETUP_SUBTITLE "WLAN auswählen oder manuell eingeben."
-#define STR_WEB_AVAILABLE_NETWORKS "Verfügbare Netzwerke"
-#define STR_WEB_RESCAN "&#128260; Neu scannen"
-#define STR_WEB_SCANNING_NETWORKS "Scanne Netzwerke..."
-#define STR_WEB_WIFI_NAME "WiFi Name (SSID)"
-#define STR_WEB_NETWORK_NAME "Netzwerkname"
-#define STR_WEB_PASSWORD "Passwort"
-#define STR_WEB_WIFI_PASSWORD "WLAN-Passwort"
-#define STR_WEB_SAVE_AND_CONNECT "Speichern &amp; Verbinden"
-#define STR_WEB_OR "oder"
-#define STR_WEB_WPS_HINT "WPS am Router drücken und hier starten."
-#define STR_WEB_WPS_START "&#128268; WPS Verbindung starten"
-#define STR_WEB_NO_NETWORKS "(Keine Netzwerke gefunden - bitte manuell eingeben)"
-#define STR_WEB_SELECT_NETWORK_PREFIX "-- Netzwerk auswählen ("
-#define STR_WEB_SELECT_NETWORK_SUFFIX " gefunden) --"
-#define STR_WEB_MANUAL_ENTRY "(Manuelle Eingabe)"
-#define STR_WEB_SIGNAL_UNIT "dBm"
-#define STR_WEB_WPS_PAGE_TITLE "EasySteel - WPS"
-#define STR_WEB_WPS_ACTIVE "&#128268; WPS Active"
-#define STR_WEB_WPS_WAITING "Waiting for router...<br>This page will disconnect.<br>The device restarts automatically."
-#define STR_WEB_SUCCESS_PAGE_TITLE "EasySteel - Saved"
-#define STR_WEB_SUCCESS_HEADING "&#10003; Saved!"
-#define STR_WEB_SETTINGS_TITLE "EasySteel Settings"
-#define STR_WEB_SETTINGS_HEADING "&#9881; EasySteel Settings"
-#define STR_WEB_SETTINGS_SUBTITLE "Configure your device."
-#define STR_WEB_DEVICE_NAME "Device Name"
-#define STR_WEB_IP "IP"
-#define STR_WEB_PORT "Port"
-#define STR_WEB_SERVER_IP_PLACEHOLDER "e.g. 192.168.1.100"
-#define STR_WEB_SAVE_SETTINGS "Save Settings"
-#define STR_WEB_FIRMWARE_UPDATE "Firmware Update"
-#define STR_WEB_FLASH_FIRMWARE "firmware.bin flashen"
-#define STR_WEB_RESET_WIFI_CONFIRM "Reset WiFi? Device will restart in setup mode."
-#define STR_WEB_RESET_WIFI "Reset WiFi Settings"
-#define STR_WEB_INSTALL_FIRMWARE_PREFIX "Firmware \""
-#define STR_WEB_INSTALL_FIRMWARE_SUFFIX "\" jetzt installieren?"
-#define STR_WEB_UPLOAD_RUNNING "Upload läuft..."
-#define STR_WEB_FLASHING_PREFIX "Flashe: "
-#define STR_WEB_UPDATE_SUCCESS "Erfolgreich! ESP32 startet neu..."
-#define STR_WEB_ERROR_PREFIX "Fehler: "
-#define STR_WEB_CONNECTION_INTERRUPTED "Verbindung unterbrochen"
-#define STR_WEB_PERCENT_UNIT "%"
-#define STR_WEB_WIFI_RESET_MESSAGE "WiFi reset. Restarting into setup mode..."
-#define STR_WEB_WIFI_RESTART_MESSAGE "Restarting device...<br>Connect to your WiFi and look for the device."
-#define STR_WEB_SETTINGS_SAVED_MESSAGE "Settings saved.<br><a href='/settings' style='color:#4ecca3'>Back to Settings</a>"
-#define STR_WEB_AUTHENTICATION_REQUIRED "Authentication required"
-#define STR_WEB_METHOD_NOT_ALLOWED "Method Not Allowed"
-#define STR_WEB_SSID_REQUIRED "SSID required"
-#define STR_WEB_OTA_IDLE_REQUIRED "Device must be idle before firmware update"
-#define STR_WEB_OTA_DISPLAY_TITLE "OTA UPDATE"
-#define STR_WEB_OTA_ERROR_TITLE "OTA FEHLER"
-#define STR_WEB_OTA_SUCCESS "Erfolgreich!"
-#define STR_WEB_OTA_ABORT "Abbruch"
-#define STR_WEB_OTA_BROWSER_TITLE "OTA BROWSER"
-#define STR_WEB_OTA_FLASHING "Flashe..."
-#define STR_WEB_API_STATE_OVERFLOW "State response overflow"
-#define STR_WEB_API_INVALID_JSON "Invalid JSON"
-#define STR_WEB_API_PAIRING_ATTEMPTS "Pairing closed after five attempts"
-#define STR_WEB_API_INVALID_PIN "Invalid PIN"
-#define STR_WEB_API_PAIRING_INACTIVE "Pairing is not active"
-#define STR_WEB_API_PHONE_NOT_PAIRED "Phone is not paired"
-#define STR_WEB_API_ACTION_NOT_ALLOWED "Action is not allowed in the current state"
-#define STR_WEB_API_COMMAND_BUSY "Command slot is busy"
+#define STR_WEB_WIFI_SETUP_TITLE i18nWeb().webWifiSetupTitle
+#define STR_WEB_WIFI_SETUP_HEADING i18nWeb().webWifiSetupHeading
+#define STR_WEB_WIFI_SETUP_SUBTITLE i18nWeb().webWifiSetupSubtitle
+#define STR_WEB_AVAILABLE_NETWORKS i18nWeb().webAvailableNetworks
+#define STR_WEB_RESCAN i18nWeb().webRescan
+#define STR_WEB_SCANNING_NETWORKS i18nWeb().webScanningNetworks
+#define STR_WEB_WIFI_NAME i18nWeb().webWifiName
+#define STR_WEB_NETWORK_NAME i18nWeb().webNetworkName
+#define STR_WEB_PASSWORD i18nWeb().webPassword
+#define STR_WEB_WIFI_PASSWORD i18nWeb().webWifiPassword
+#define STR_WEB_SAVE_AND_CONNECT i18nWeb().webSaveAndConnect
+#define STR_WEB_OR i18nWeb().webOr
+#define STR_WEB_WPS_HINT i18nWeb().webWpsHint
+#define STR_WEB_WPS_START i18nWeb().webWpsStart
+#define STR_WEB_NO_NETWORKS i18nWeb().webNoNetworks
+#define STR_WEB_SELECT_NETWORK_PREFIX i18nWeb().webSelectNetworkPrefix
+#define STR_WEB_SELECT_NETWORK_SUFFIX i18nWeb().webSelectNetworkSuffix
+#define STR_WEB_MANUAL_ENTRY i18nWeb().webManualEntry
+#define STR_WEB_SIGNAL_UNIT i18nWeb().webSignalUnit
+#define STR_WEB_WPS_PAGE_TITLE i18nWeb().webWpsPageTitle
+#define STR_WEB_WPS_ACTIVE i18nWeb().webWpsActive
+#define STR_WEB_WPS_WAITING i18nWeb().webWpsWaiting
+#define STR_WEB_SUCCESS_PAGE_TITLE i18nWeb().webSuccessPageTitle
+#define STR_WEB_SUCCESS_HEADING i18nWeb().webSuccessHeading
+#define STR_WEB_SETTINGS_TITLE i18nWeb().webSettingsTitle
+#define STR_WEB_SETTINGS_HEADING i18nWeb().webSettingsHeading
+#define STR_WEB_SETTINGS_SUBTITLE i18nWeb().webSettingsSubtitle
+#define STR_WEB_DEVICE_NAME i18nWeb().webDeviceName
+#define STR_WEB_IP i18nWeb().webIp
+#define STR_WEB_PORT i18nWeb().webPort
+#define STR_WEB_SERVER_IP_PLACEHOLDER i18nWeb().webServerIpPlaceholder
+#define STR_WEB_SAVE_SETTINGS i18nWeb().webSaveSettings
+#define STR_WEB_FIRMWARE_UPDATE i18nWeb().webFirmwareUpdate
+#define STR_WEB_FLASH_FIRMWARE i18nWeb().webFlashFirmware
+#define STR_WEB_RESET_WIFI_CONFIRM i18nWeb().webResetWifiConfirm
+#define STR_WEB_RESET_WIFI i18nWeb().webResetWifi
+#define STR_WEB_INSTALL_FIRMWARE_PREFIX i18nWeb().webInstallFirmwarePrefix
+#define STR_WEB_INSTALL_FIRMWARE_SUFFIX i18nWeb().webInstallFirmwareSuffix
+#define STR_WEB_UPLOAD_RUNNING i18nWeb().webUploadRunning
+#define STR_WEB_FLASHING_PREFIX i18nWeb().webFlashingPrefix
+#define STR_WEB_UPDATE_SUCCESS i18nWeb().webUpdateSuccess
+#define STR_WEB_ERROR_PREFIX i18nWeb().webErrorPrefix
+#define STR_WEB_CONNECTION_INTERRUPTED i18nWeb().webConnectionInterrupted
+#define STR_WEB_PERCENT_UNIT i18nWeb().webPercentUnit
+#define STR_WEB_WIFI_RESET_MESSAGE i18nWeb().webWifiResetMessage
+#define STR_WEB_WIFI_RESTART_MESSAGE i18nWeb().webWifiRestartMessage
+#define STR_WEB_SETTINGS_SAVED_MESSAGE i18nWeb().webSettingsSavedMessage
+#define STR_WEB_AUTHENTICATION_REQUIRED i18nWeb().webAuthenticationRequired
+#define STR_WEB_METHOD_NOT_ALLOWED i18nWeb().webMethodNotAllowed
+#define STR_WEB_SSID_REQUIRED i18nWeb().webSsidRequired
+#define STR_WEB_OTA_IDLE_REQUIRED i18nWeb().webOtaIdleRequired
+#define STR_WEB_OTA_DISPLAY_TITLE i18nWeb().webOtaDisplayTitle
+#define STR_WEB_OTA_ERROR_TITLE i18nWeb().webOtaErrorTitle
+#define STR_WEB_OTA_SUCCESS i18nWeb().webOtaSuccess
+#define STR_WEB_OTA_ABORT i18nWeb().webOtaAbort
+#define STR_WEB_OTA_BROWSER_TITLE i18nWeb().webOtaBrowserTitle
+#define STR_WEB_OTA_FLASHING i18nWeb().webOtaFlashing
+#define STR_WEB_API_STATE_OVERFLOW i18nWeb().webApiStateOverflow
+#define STR_WEB_API_INVALID_JSON i18nWeb().webApiInvalidJson
+#define STR_WEB_API_PAIRING_ATTEMPTS i18nWeb().webApiPairingAttempts
+#define STR_WEB_API_INVALID_PIN i18nWeb().webApiInvalidPin
+#define STR_WEB_API_PAIRING_INACTIVE i18nWeb().webApiPairingInactive
+#define STR_WEB_API_PHONE_NOT_PAIRED i18nWeb().webApiPhoneNotPaired
+#define STR_WEB_API_ACTION_NOT_ALLOWED i18nWeb().webApiActionNotAllowed
+#define STR_WEB_API_COMMAND_BUSY i18nWeb().webApiCommandBusy
 
 // --- Mobile Training Web UI ---
-#define STR_TRAINING_PAGE_TITLE "EasySteel Training"
-#define STR_TRAINING_WAKE_OFF "&#9728; Wach: Aus"
-#define STR_TRAINING_WAKE_ON "&#9728; Wach: AN"
-#define STR_TRAINING_BEEP_OFF "&#128266; Beep: Aus"
-#define STR_TRAINING_BEEP_ON "&#128266; Beep: AN"
-#define STR_TRAINING_PC_LOCKED "&#128274; RangeControl ist verbunden &ndash; Handy-Steuerung gesperrt"
-#define STR_TRAINING_RELEASE_REQUIRED "Handy-Training am ESP physisch freigeben."
-#define STR_TRAINING_PIN_PLACEHOLDER "PIN"
-#define STR_TRAINING_PAIR "Koppeln"
-#define STR_TRAINING_TARGET_PREFIX "T"
-#define STR_TRAINING_START "START"
-#define STR_TRAINING_STOP "STOP"
-#define STR_TRAINING_COUNTDOWN_START "Countdown starten"
-#define STR_TRAINING_ROUND_STOP "Runde stoppen"
-#define STR_TRAINING_RESET "Zurücksetzen"
-#define STR_TRAINING_CURRENT_SPLITS "Aktuelle Runde &ndash; Splits"
-#define STR_TRAINING_NO_HITS "Noch keine Treffer erfasst"
-#define STR_TRAINING_HISTORY_LOCAL "Trainings-Verlauf (Lokal)"
-#define STR_TRAINING_RUNS "Läufe"
-#define STR_TRAINING_ALL "Alle"
-#define STR_TRAINING_BEST_TIME "Bestzeit"
-#define STR_TRAINING_AVERAGE "Ø Schnitt"
-#define STR_TRAINING_NO_RUNS_SAVED "Bisher keine Läufe gespeichert"
-#define STR_TRAINING_COPY_CSV "&#128203; CSV Kopieren"
-#define STR_TRAINING_DELETE_HISTORY "&#128465; Verlauf löschen"
-#define STR_TRAINING_SETTINGS_LINK "&#9881; Geräte-Einstellungen &amp; WLAN"
-#define STR_TRAINING_UNKNOWN "Unbekannt"
-#define STR_TRAINING_NO_RUNS_CATEGORY "Keine Läufe in dieser Kategorie"
-#define STR_TRAINING_NO_ENTRIES "Keine Einträge vorhanden."
-#define STR_TRAINING_CSV_HEADER "Zeitstempel,Modus,Rohzeit_s,Gesamtzeit_s,Miss_Count,Splits\\n"
-#define STR_TRAINING_CSV_COPIED "Verlauf erfolgreich als CSV in die Zwischenablage kopiert!"
-#define STR_TRAINING_CSV_PROMPT "CSV kopieren:"
-#define STR_TRAINING_CLEAR_CONFIRM "Gesamten Trainingsverlauf auf diesem Smartphone wirklich löschen?"
-#define STR_TRAINING_PIN_INVALID "Bitte den vierstelligen PIN vom ESP eingeben."
-#define STR_TRAINING_PAIR_FAILED "Kopplung fehlgeschlagen."
-#define STR_TRAINING_CONTROLLER "Dieses Handy steuert das Einzeltraining."
-#define STR_TRAINING_PAIR_PROMPT "PIN vom ESP eingeben."
-#define STR_TRAINING_OTHER_PAIRED "Ein anderes Handy ist bereits gekoppelt."
-#define STR_TRAINING_PC_PRIORITY "PC-Steuerung hat Vorrang."
-#define STR_TRAINING_RELEASE_MAIN_MENU "Handy-Training im Hauptmenü des ESP freigeben."
-#define STR_TRAINING_NEXT_RUN "Nächsten Lauf starten"
-#define STR_TRAINING_ABORT_COUNTDOWN "Countdown abbrechen"
-#define STR_TRAINING_BACK_TO_STANDBY "Zurück zu Standby"
-#define STR_TRAINING_DISCARD_RUN "Lauf verwerfen"
-#define STR_TRAINING_PENALTY_LABEL "Miss/Penalty"
-#define STR_TRAINING_TARGET_LABEL "Target"
-#define STR_TRAINING_MISS_ABBREVIATION "M"
+#define STR_TRAINING_PAGE_TITLE i18nWeb().trainingPageTitle
+#define STR_TRAINING_WAKE_OFF i18nWeb().trainingWakeOff
+#define STR_TRAINING_WAKE_ON i18nWeb().trainingWakeOn
+#define STR_TRAINING_BEEP_OFF i18nWeb().trainingBeepOff
+#define STR_TRAINING_BEEP_ON i18nWeb().trainingBeepOn
+#define STR_TRAINING_PC_LOCKED i18nWeb().trainingPcLocked
+#define STR_TRAINING_RELEASE_REQUIRED i18nWeb().trainingReleaseRequired
+#define STR_TRAINING_PIN_PLACEHOLDER i18nWeb().trainingPinPlaceholder
+#define STR_TRAINING_PAIR i18nWeb().trainingPair
+#define STR_TRAINING_TARGET_PREFIX i18nWeb().trainingTargetPrefix
+#define STR_TRAINING_START i18nWeb().trainingStart
+#define STR_TRAINING_STOP i18nWeb().trainingStop
+#define STR_TRAINING_COUNTDOWN_START i18nWeb().trainingCountdownStart
+#define STR_TRAINING_ROUND_STOP i18nWeb().trainingRoundStop
+#define STR_TRAINING_RESET i18nWeb().trainingReset
+#define STR_TRAINING_CURRENT_SPLITS i18nWeb().trainingCurrentSplits
+#define STR_TRAINING_NO_HITS i18nWeb().trainingNoHits
+#define STR_TRAINING_STAGE i18nWeb().trainingStage
+#define STR_TRAINING_LOCAL_ONLY i18nWeb().trainingLocalOnly
+#define STR_TRAINING_STAGE_5_TO_GO i18nWeb().trainingStage5ToGo
+#define STR_TRAINING_STAGE_SHOWDOWN i18nWeb().trainingStageShowdown
+#define STR_TRAINING_STAGE_SMOKE_AND_HOPE i18nWeb().trainingStageSmokeAndHope
+#define STR_TRAINING_STAGE_OUTER_LIMITS i18nWeb().trainingStageOuterLimits
+#define STR_TRAINING_STAGE_ACCELERATOR i18nWeb().trainingStageAccelerator
+#define STR_TRAINING_STAGE_THE_PENDULUM i18nWeb().trainingStageThePendulum
+#define STR_TRAINING_STAGE_SPEED_OPTION i18nWeb().trainingStageSpeedOption
+#define STR_TRAINING_STAGE_ROUNDABOUT i18nWeb().trainingStageRoundabout
+#define STR_TRAINING_HISTORY_LOCAL i18nWeb().trainingHistoryLocal
+#define STR_TRAINING_RUNS i18nWeb().trainingRuns
+#define STR_TRAINING_ALL i18nWeb().trainingAll
+#define STR_TRAINING_BEST_TIME i18nWeb().trainingBestTime
+#define STR_TRAINING_AVERAGE i18nWeb().trainingAverage
+#define STR_TRAINING_NO_RUNS_SAVED i18nWeb().trainingNoRunsSaved
+#define STR_TRAINING_COPY_CSV i18nWeb().trainingCopyCsv
+#define STR_TRAINING_DELETE_HISTORY i18nWeb().trainingDeleteHistory
+#define STR_TRAINING_SETTINGS_LINK i18nWeb().trainingSettingsLink
+#define STR_TRAINING_UNKNOWN i18nWeb().trainingUnknown
+#define STR_TRAINING_NO_RUNS_CATEGORY i18nWeb().trainingNoRunsCategory
+#define STR_TRAINING_NO_ENTRIES i18nWeb().trainingNoEntries
+#define STR_TRAINING_CSV_HEADER i18nWeb().trainingCsvHeader
+#define STR_TRAINING_CSV_COPIED i18nWeb().trainingCsvCopied
+#define STR_TRAINING_CSV_PROMPT i18nWeb().trainingCsvPrompt
+#define STR_TRAINING_CLEAR_CONFIRM i18nWeb().trainingClearConfirm
+#define STR_TRAINING_PIN_INVALID i18nWeb().trainingPinInvalid
+#define STR_TRAINING_PAIR_FAILED i18nWeb().trainingPairFailed
+#define STR_TRAINING_CONTROLLER i18nWeb().trainingController
+#define STR_TRAINING_PAIR_PROMPT i18nWeb().trainingPairPrompt
+#define STR_TRAINING_OTHER_PAIRED i18nWeb().trainingOtherPaired
+#define STR_TRAINING_PC_PRIORITY i18nWeb().trainingPcPriority
+#define STR_TRAINING_RELEASE_MAIN_MENU i18nWeb().trainingReleaseMainMenu
+#define STR_TRAINING_NEXT_RUN i18nWeb().trainingNextRun
+#define STR_TRAINING_ABORT_COUNTDOWN i18nWeb().trainingAbortCountdown
+#define STR_TRAINING_BACK_TO_STANDBY i18nWeb().trainingBackToStandby
+#define STR_TRAINING_DISCARD_RUN i18nWeb().trainingDiscardRun
+#define STR_TRAINING_PENALTY_LABEL i18nWeb().trainingPenaltyLabel
+#define STR_TRAINING_TARGET_LABEL i18nWeb().trainingTargetLabel
+#define STR_TRAINING_MISS_ABBREVIATION i18nWeb().trainingMissAbbreviation

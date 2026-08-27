@@ -435,6 +435,9 @@ void roundControllerInit(HwButtons& buttons)
 
   screensaverTimeoutMinutes = storageLoadScreensaverTimeout();
 
+  int lang = storageLoadLanguage();
+  menuSetLanguage(lang == 1 ? Language::EN : Language::DE);
+
   for (int i = 0; i < MAX_TARGETS; i++)
   {
     pinMode(SENSOR_PINS[i], INPUT_PULLDOWN);

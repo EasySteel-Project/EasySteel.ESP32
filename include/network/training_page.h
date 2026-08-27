@@ -5,7 +5,7 @@
 // --- Mobile Training & Live Dashboard Single-Page App ---
 const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
-<html lang="de">
+<html lang="%LANG%">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
@@ -63,6 +63,18 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
     .pair-row button {
       border: none; border-radius: 8px; padding: 10px 14px; font-weight: 700;
       background: #4ecca3; color: #06251b; cursor: pointer;
+    }
+
+    .stage-selector {
+      display: flex; justify-content: space-between; align-items: center; gap: 12px;
+      background: #181a24; border: 1px solid #303443; border-radius: 12px;
+      padding: 10px 12px;
+    }
+    .stage-selector label { font-size: 0.9rem; font-weight: 800; color: #f0f2f5; }
+    .stage-selector .local-note { font-size: 0.72rem; font-weight: 500; color: #777; margin-top: 2px; }
+    .stage-selector select {
+      min-width: 92px; border: 1px solid #3f4558; background: #0d0e15; color: #fff;
+      border-radius: 8px; padding: 9px 12px; font-size: 1rem; font-weight: 700;
     }
 
     /* Big Timer Card */
@@ -237,6 +249,14 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
       </div>
     </div>
 
+    <div class="stage-selector">
+      <div>
+        <label for="stage-select">%TRAINING_STAGE%</label>
+        <div class="local-note">%TRAINING_LOCAL_ONLY%</div>
+      </div>
+      <select id="stage-select" onchange="saveSelectedStage()"></select>
+    </div>
+
     <!-- Timer Card -->
     <div class="timer-card">
       <div id="state-tag" class="state-badge state-STANDBY">%TRAINING_STANDBY%</div>
@@ -339,6 +359,15 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
       modeCompetition: '%TRAINING_MODE_COMPETITION%',
       modeAllTargets: '%TRAINING_MODE_ALL_TARGETS%',
       modeDrill: '%TRAINING_MODE_DRILL%',
+      stage: '%TRAINING_STAGE%',
+      stage5ToGo: '%TRAINING_STAGE_5_TO_GO%',
+      stageShowdown: '%TRAINING_STAGE_SHOWDOWN%',
+      stageSmokeAndHope: '%TRAINING_STAGE_SMOKE_AND_HOPE%',
+      stageOuterLimits: '%TRAINING_STAGE_OUTER_LIMITS%',
+      stageAccelerator: '%TRAINING_STAGE_ACCELERATOR%',
+      stageThePendulum: '%TRAINING_STAGE_THE_PENDULUM%',
+      stageSpeedOption: '%TRAINING_STAGE_SPEED_OPTION%',
+      stageRoundabout: '%TRAINING_STAGE_ROUNDABOUT%',
       unknown: '%TRAINING_UNKNOWN%',
       runs: '%TRAINING_RUNS%',
       noRunsCategory: '%TRAINING_NO_RUNS_CATEGORY%',
@@ -369,6 +398,17 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
       missAbbreviation: '%TRAINING_MISS_ABBREVIATION%'
     };
 
+    const STAGES = [
+      {id: 'SC-101', name: TEXT.stage5ToGo},
+      {id: 'SC-102', name: TEXT.stageShowdown},
+      {id: 'SC-103', name: TEXT.stageSmokeAndHope},
+      {id: 'SC-104', name: TEXT.stageOuterLimits},
+      {id: 'SC-105', name: TEXT.stageAccelerator},
+      {id: 'SC-106', name: TEXT.stageThePendulum},
+      {id: 'SC-107', name: TEXT.stageSpeedOption},
+      {id: 'SC-108', name: TEXT.stageRoundabout}
+    ];
+
     let audioEnabled = false;
     let audioCtx = null;
     let wakeLock = null;
@@ -384,6 +424,54 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
     let lastRecordedRoundId = localStorage.getItem('es_last_result_id') || '';
     let pollInterval = 200;
     let historyFilter = 'all';
+    let selectedStageId = loadSelectedStageId();
+
+    function findStage(stageId) {
+      return STAGES.find(stage => stage.id === stageId);
+    }
+
+    function loadSelectedStageId() {
+      try {
+        const storedStage = localStorage.getItem('es_selected_stage');
+        if (findStage(storedStage)) return storedStage;
+
+        const legacyStage = parseInt(storedStage, 10);
+        if (legacyStage >= 1 && legacyStage <= STAGES.length) {
+          return STAGES[legacyStage - 1].id;
+        }
+      } catch (e) {}
+      return STAGES[0].id;
+    }
+
+    function initStageSelection() {
+      const select = document.getElementById('stage-select');
+      STAGES.forEach(stage => {
+        const option = document.createElement('option');
+        option.value = stage.id;
+        option.textContent = stage.name;
+        select.appendChild(option);
+      });
+      select.value = selectedStageId;
+    }
+
+    function saveSelectedStage() {
+      const select = document.getElementById('stage-select');
+      const stageId = select.value;
+      if (!findStage(stageId)) return;
+      selectedStageId = stageId;
+      try {
+        localStorage.setItem('es_selected_stage', stageId);
+      } catch (e) {}
+    }
+
+    function getHistoryStageName(run) {
+      const stage = findStage(run.stageId);
+      if (stage) return stage.name;
+      if (Number.isInteger(run.stage) && run.stage >= 1 && run.stage <= 99) {
+        return TEXT.stage + ' ' + run.stage;
+      }
+      return '';
+    }
 
     // --- Screen Wake Lock (Dual API + NoSleep Fallback for HTTP) ---
     function initWakeVideo() {
@@ -644,6 +732,7 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
       const run = {
         id: result.id,
         timestamp: timeStr,
+        stageId: selectedStageId,
         mode: result.mode,
         modeName: modeNames[result.mode] || TEXT.unknown,
         rawTimeMs: result.rawTimeMs,
@@ -703,6 +792,8 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
       let html = '';
       filtered.forEach(h => {
         const pText = h.penaltyCount > 0 ? ('<span class="hist-penalty">+' + h.penaltyCount + TEXT.missAbbreviation + '</span>') : '';
+        const stageName = getHistoryStageName(h);
+        const stageText = stageName ? ('<span class="hist-tag">' + stageName + '</span> ') : '';
         let splitsHtml = '';
         if (h.hits && h.hits.length > 0) {
           splitsHtml = '<div class="hist-splits" id="h-split-' + h.id + '">';
@@ -718,7 +809,7 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
 
         html += '<div class="hist-item">' +
           '<div class="hist-main" onclick="toggleHistSplits(\'' + h.id + '\')">' +
-            '<div><span class="hist-tag">' + h.modeName + '</span> <span style="color:#777;margin-left:4px;">' + h.timestamp + '</span></div>' +
+            '<div>' + stageText + '<span class="hist-tag">' + h.modeName + '</span> <span style="color:#777;margin-left:4px;">' + h.timestamp + '</span></div>' +
             '<div><span class="hist-time">' + (h.finalTimeMs / 1000).toFixed(3) + TEXT.secondsUnit + '</span>' + pText + ' &#9662;</div>' +
           '</div>' +
           splitsHtml +
@@ -744,7 +835,8 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
       let csv = TEXT.csvHeader;
       hist.forEach(h => {
         const splitsStr = (h.hits || []).map(s => (s.target === 0 ? TEXT.stopPlate : TEXT.targetPrefix + (s.target + 1)) + ':' + (s.splitMs / 1000).toFixed(3)).join(' | ');
-        csv += '"' + h.timestamp + '","' + h.modeName + '",' + ((h.rawTimeMs || h.finalTimeMs) / 1000).toFixed(3) + ',' + (h.finalTimeMs / 1000).toFixed(3) + ',' + (h.missCount || 0) + ',"' + splitsStr + '"\n';
+        const stageName = getHistoryStageName(h);
+        csv += '"' + h.timestamp + '","' + stageName + '","' + h.modeName + '",' + ((h.rawTimeMs || h.finalTimeMs) / 1000).toFixed(3) + ',' + (h.finalTimeMs / 1000).toFixed(3) + ',' + (h.missCount || 0) + ',"' + splitsStr + '"\n';
       });
 
       if (navigator.clipboard) {
@@ -966,6 +1058,7 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
         });
     }
 
+    initStageSelection();
     renderHistoryUI();
     updateDashboard();
   </script>
