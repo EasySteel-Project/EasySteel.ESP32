@@ -22,6 +22,7 @@ bool displayInit()
   if (oled.begin(0x3C, true))
   {
     connected = true;
+    oled.setTextWrap(false);
     displayUpdate(STR_BOOTING, "");
     return true;
   }
@@ -91,6 +92,7 @@ static void drawNetworkStatus()
 static void drawHeader()
 {
   oled.clearDisplay();
+  oled.setTextWrap(false);
   oled.setTextSize(1);
   oled.setTextColor(SH110X_WHITE);
   oled.setCursor(0, 0);
@@ -706,8 +708,8 @@ void displayUpdateMenuList(const char *headerTitle, const char *const *items, in
   if (selectedIndex > 0 && selectedIndex - 1 < itemCount)
   {
     oled.setCursor(8, 23);
-    char buf[22];
-    snprintf(buf, sizeof(buf), "%.20s", items[selectedIndex - 1]);
+    char buf[20];
+    snprintf(buf, sizeof(buf), "%.18s", items[selectedIndex - 1]);
     oled.print(buf);
     oled.setCursor(120, 23);
     oled.print(STR_MENU_PREVIOUS_GLYPH);
@@ -722,7 +724,7 @@ void displayUpdateMenuList(const char *headerTitle, const char *const *items, in
     oled.print(STR_MENU_SELECTED_GLYPH);
     oled.setCursor(8, 33);
     char buf[22];
-    snprintf(buf, sizeof(buf), "%.20s", items[selectedIndex]);
+    snprintf(buf, sizeof(buf), "%.19s", items[selectedIndex]);
     oled.print(buf);
     oled.setTextColor(SH110X_WHITE);
   }
@@ -731,8 +733,8 @@ void displayUpdateMenuList(const char *headerTitle, const char *const *items, in
   if (selectedIndex + 1 < itemCount)
   {
     oled.setCursor(8, 43);
-    char buf[22];
-    snprintf(buf, sizeof(buf), "%.20s", items[selectedIndex + 1]);
+    char buf[20];
+    snprintf(buf, sizeof(buf), "%.18s", items[selectedIndex + 1]);
     oled.print(buf);
     oled.setCursor(120, 43);
     oled.print(STR_MENU_NEXT_GLYPH);
