@@ -35,6 +35,26 @@ void test_false_start_event_does_not_change_unrelated_states(void)
     TEST_ASSERT_EQUAL_INT(RUNNING, roundStateOnFalseStart(RUNNING));
 }
 
+void test_countdown_id_is_non_zero_and_rollover_safe(void)
+{
+    TEST_ASSERT_EQUAL_UINT32(1, roundStateNextCountdownId(0));
+    TEST_ASSERT_EQUAL_UINT32(42, roundStateNextCountdownId(41));
+    TEST_ASSERT_EQUAL_UINT32(1, roundStateNextCountdownId(UINT32_MAX));
+}
+
+void test_start_delay_remaining_time_is_state_bound_and_rollover_safe(void)
+{
+    TEST_ASSERT_EQUAL_UINT32(3500, roundStateGetStartDelayRemainingMs(DELAY, 5000, 1500));
+    TEST_ASSERT_EQUAL_UINT32(0, roundStateGetStartDelayRemainingMs(DELAY, 5000, 5000));
+    TEST_ASSERT_EQUAL_UINT32(0, roundStateGetStartDelayRemainingMs(STANDBY, 5000, 1500));
+
+    const uint32_t startedAt = UINT32_MAX - 999;
+    const uint32_t delayEnd = startedAt + 2000;
+    TEST_ASSERT_EQUAL_UINT32(2000, roundStateGetStartDelayRemainingMs(DELAY, delayEnd, startedAt));
+    TEST_ASSERT_EQUAL_UINT32(1000, roundStateGetStartDelayRemainingMs(DELAY, delayEnd, 0));
+    TEST_ASSERT_EQUAL_UINT32(0, roundStateGetStartDelayRemainingMs(DELAY, delayEnd, delayEnd));
+}
+
 int main(int argc, char **argv)
 {
     UNITY_BEGIN();
@@ -42,5 +62,7 @@ int main(int argc, char **argv)
     RUN_TEST(test_false_start_reset_returns_to_standby_immediately);
     RUN_TEST(test_false_start_elapsed_time_is_millis_rollover_safe);
     RUN_TEST(test_false_start_event_does_not_change_unrelated_states);
+    RUN_TEST(test_countdown_id_is_non_zero_and_rollover_safe);
+    RUN_TEST(test_start_delay_remaining_time_is_state_bound_and_rollover_safe);
     return UNITY_END();
 }

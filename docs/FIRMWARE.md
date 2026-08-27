@@ -138,7 +138,7 @@ The default TCP port is `53421`. Event framing and delivery semantics are detail
 4. Exactly one phone receives a RAM-only session token. Dashboard polling renews the 30-second inactivity lease.
 5. Physical input clears any queued phone command. A desktop connection revokes the phone immediately; a new physical release is required after disconnect.
 
-The dashboard exposes Start in `STANDBY` and `FINISHED`, Stop in `DELAY` and `RUNNING`, Reset in `DELAY`, `RUNNING`, and `FINISHED`, and mode selection only in `STANDBY`. HTTP handlers validate and enqueue one bounded command; the normal round-controller tick performs the action. When **Beep** is enabled, the phone mirrors the transition from `DELAY` to `RUNNING` with a start beep. Polling may delay this sound by up to one polling interval, so the ESP32 buzzer defines the actual start signal.
+The dashboard exposes Start in `STANDBY` and `FINISHED`, Stop in `DELAY` and `RUNNING`, Reset in `DELAY`, `RUNNING`, and `FINISHED`, and mode selection only in `STANDBY`. HTTP handlers validate and enqueue one bounded command; the normal round-controller tick performs the action. During `DELAY`, the ESP32 reports its stable countdown ID and remaining time. The phone keeps the normal 200 ms polling rate and continuously updates an EWMA estimate of half the HTTP round-trip time from every successful state response. Each `DELAY` response reschedules the enabled **Beep** with the latest estimate. Network asymmetry and browser scheduling may still introduce jitter, so the ESP32 buzzer defines the actual start signal.
 
 ### Transmission & Queue Reliability
 

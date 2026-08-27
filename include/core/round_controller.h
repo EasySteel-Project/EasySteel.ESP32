@@ -50,6 +50,12 @@ bool roundControllerSetRoundMode(int mode);
 /// Get the current elapsed or final time in milliseconds.
 unsigned long roundControllerGetElapsedMs(unsigned long currentMillis);
 
+/// Get the stable identifier of the current or most recent start countdown.
+unsigned long roundControllerGetCountdownId();
+
+/// Get milliseconds remaining until the authoritative ESP32 start signal.
+unsigned long roundControllerGetStartDelayRemainingMs(unsigned long currentMillis);
+
 /// Get current penalty count in FINISHED state.
 int roundControllerGetPenaltyCount();
 

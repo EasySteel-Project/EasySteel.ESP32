@@ -21,6 +21,7 @@ static Button* btnReset = nullptr;
 // --- State Machine ---
 static volatile State currentState = STANDBY;
 static unsigned long delayEndTime = 0;
+static unsigned long countdownId = 0;
 static unsigned long falseStartStartedAt = 0;
 
 // --- Input cooldown (prevents contact-bounce double-clicks) ---
@@ -397,6 +398,7 @@ static void handleStandbyInput(unsigned long currentMillis, bool startPressed)
       !remoteControlIsPcConnected();
     networkSendEvent("start_pressed", -1, 0);
     unsigned long delayMs = esp_random() % (START_DELAY_MAX_MS - START_DELAY_MIN_MS) + START_DELAY_MIN_MS;
+    countdownId = roundStateNextCountdownId(countdownId);
     delayEndTime = currentMillis + delayMs;
     Serial.print("[BTN] Start pressed. Delaying for ");
     Serial.print(delayMs);
@@ -663,7 +665,7 @@ void roundControllerTick(unsigned long currentMillis)
       return;
     }
 
-    if (currentMillis >= delayEndTime)
+    if (roundStateGetStartDelayRemainingMs(currentState, delayEndTime, currentMillis) == 0)
     {
       startRound(currentMillis);
     }
@@ -980,6 +982,21 @@ unsigned long roundControllerGetElapsedMs(unsigned long currentMillis)
     return lastRoundTimeMs;
   }
   return 0;
+}
+
+unsigned long roundControllerGetCountdownId()
+{
+  return countdownId;
+}
+
+unsigned long roundControllerGetStartDelayRemainingMs(unsigned long currentMillis)
+{
+  if (currentState != DELAY)
+  {
+    return 0;
+  }
+
+  return roundStateGetStartDelayRemainingMs(currentState, delayEndTime, currentMillis);
 }
 
 int roundControllerGetPenaltyCount()

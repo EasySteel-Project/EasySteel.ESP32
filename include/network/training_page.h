@@ -9,7 +9,7 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>EasySteel Training</title>
+  <title>%TRAINING_PAGE_TITLE%</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
     body {
@@ -216,127 +216,170 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
           <line x1="18" y1="12" x2="22" y2="12"></line>
           <circle cx="12" cy="12" r="1.5" fill="#4ecca3"></circle>
         </svg>
-        <span>EasySteel</span>
+        <span>%APP_NAME%</span>
       </div>
       <div class="header-actions">
-        <button id="btn-wake" class="btn-icon" onclick="toggleWakeLock()">&#9728; Wach: Aus</button>
-        <button id="btn-audio" class="btn-icon" onclick="toggleAudio()">&#128266; Beep: Aus</button>
+        <button id="btn-wake" class="btn-icon" onclick="toggleWakeLock()">%TRAINING_WAKE_OFF%</button>
+        <button id="btn-audio" class="btn-icon" onclick="toggleAudio()">%TRAINING_BEEP_OFF%</button>
       </div>
     </div>
 
     <!-- Tournament Mode Warning -->
     <div id="tourn-banner" class="banner-tourn">
-      &#128274; RangeControl ist verbunden &ndash; Handy-Steuerung gesperrt
+      %TRAINING_PC_LOCKED%
     </div>
 
     <div id="remote-card" class="remote-card">
-      <div id="remote-message">Handy-Training am ESP physisch freigeben.</div>
+      <div id="remote-message">%TRAINING_RELEASE_REQUIRED%</div>
       <div id="pair-row" class="pair-row">
-        <input id="pair-pin" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="PIN">
-        <button onclick="pairPhone()">Koppeln</button>
+        <input id="pair-pin" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="%TRAINING_PIN_PLACEHOLDER%">
+        <button onclick="pairPhone()">%TRAINING_PAIR%</button>
       </div>
     </div>
 
     <!-- Timer Card -->
     <div class="timer-card">
-      <div id="state-tag" class="state-badge state-STANDBY">STANDBY</div>
+      <div id="state-tag" class="state-badge state-STANDBY">%TRAINING_STANDBY%</div>
       <div id="timer-val" class="timer-display">0.000</div>
       <div id="penalty-val" class="penalty-text"></div>
 
       <!-- Target Matrix -->
       <div class="target-grid" id="target-matrix">
-        <div class="target-cell" id="tgt-1"><div class="t-name">T1</div><div class="t-split" id="split-1">&ndash;</div></div>
-        <div class="target-cell" id="tgt-2"><div class="t-name">T2</div><div class="t-split" id="split-2">&ndash;</div></div>
-        <div class="target-cell" id="tgt-3"><div class="t-name">T3</div><div class="t-split" id="split-3">&ndash;</div></div>
-        <div class="target-cell" id="tgt-4"><div class="t-name">T4</div><div class="t-split" id="split-4">&ndash;</div></div>
-        <div class="target-cell" id="tgt-0"><div class="t-name">STOP</div><div class="t-split" id="split-0">&ndash;</div></div>
+        <div class="target-cell" id="tgt-1"><div class="t-name">%TRAINING_TARGET_PREFIX%1</div><div class="t-split" id="split-1">&ndash;</div></div>
+        <div class="target-cell" id="tgt-2"><div class="t-name">%TRAINING_TARGET_PREFIX%2</div><div class="t-split" id="split-2">&ndash;</div></div>
+        <div class="target-cell" id="tgt-3"><div class="t-name">%TRAINING_TARGET_PREFIX%3</div><div class="t-split" id="split-3">&ndash;</div></div>
+        <div class="target-cell" id="tgt-4"><div class="t-name">%TRAINING_TARGET_PREFIX%4</div><div class="t-split" id="split-4">&ndash;</div></div>
+        <div class="target-cell" id="tgt-0"><div class="t-name">%TRAINING_STOP_PLATE%</div><div class="t-split" id="split-0">&ndash;</div></div>
       </div>
     </div>
 
     <!-- Mode Selector -->
     <div class="mode-bar">
-      <button class="mode-btn active" id="mode-0" onclick="setMode(0)">Wettkampf</button>
-      <button class="mode-btn" id="mode-1" onclick="setMode(1)">Alle Ziele</button>
-      <button class="mode-btn" id="mode-2" onclick="setMode(2)">Drill</button>
+      <button class="mode-btn active" id="mode-0" onclick="setMode(0)">%TRAINING_MODE_COMPETITION%</button>
+      <button class="mode-btn" id="mode-1" onclick="setMode(1)">%TRAINING_MODE_ALL_TARGETS%</button>
+      <button class="mode-btn" id="mode-2" onclick="setMode(2)">%TRAINING_MODE_DRILL%</button>
     </div>
 
     <!-- Action Controls -->
     <div class="controls" id="ctrl-panel">
       <button id="btn-start" class="btn-action btn-start" onclick="sendAction('start')">
-        <span>START</span>
-        <span class="btn-sub">Countdown starten</span>
+        <span>%TRAINING_START%</span>
+        <span class="btn-sub">%TRAINING_COUNTDOWN_START%</span>
       </button>
       <button id="btn-stop" class="btn-action btn-stop" onclick="sendAction('stop')">
-        <span>STOP</span>
-        <span class="btn-sub">Runde stoppen</span>
+        <span>%TRAINING_STOP%</span>
+        <span class="btn-sub">%TRAINING_ROUND_STOP%</span>
       </button>
       <button id="btn-reset" class="btn-action btn-reset" onclick="sendAction('reset')">
-        <span>RESET</span>
-        <span class="btn-sub">Zur&uuml;cksetzen</span>
+        <span>%TRAINING_RESET_ACTION%</span>
+        <span class="btn-sub">%TRAINING_RESET%</span>
       </button>
     </div>
 
     <!-- Splits List of Current Round -->
     <div class="card-box">
-      <div class="card-header">Aktuelle Runde &ndash; Splits</div>
-      <div id="splits-list"><div style="color:#666;font-size:0.8rem;text-align:center;padding:6px;">Noch keine Treffer erfasst</div></div>
+      <div class="card-header">%TRAINING_CURRENT_SPLITS%</div>
+      <div id="splits-list"><div style="color:#666;font-size:0.8rem;text-align:center;padding:6px;">%TRAINING_NO_HITS%</div></div>
     </div>
 
     <!-- Local Training History & Stats -->
     <div class="card-box">
       <div class="card-header">
-        <span>Trainings-Verlauf (Lokal)</span>
-        <span id="hist-count-badge" style="font-size:0.75rem;color:#4ecca3;">0 L&auml;ufe</span>
+        <span>%TRAINING_HISTORY_LOCAL%</span>
+        <span id="hist-count-badge" style="font-size:0.75rem;color:#4ecca3;">0 %TRAINING_RUNS%</span>
       </div>
 
       <!-- Mode Filters -->
       <div class="hist-filter">
-        <button class="filter-chip active" onclick="setHistoryFilter('all', this)">Alle</button>
-        <button class="filter-chip" onclick="setHistoryFilter(0, this)">Wettkampf</button>
-        <button class="filter-chip" onclick="setHistoryFilter(1, this)">Alle Ziele</button>
-        <button class="filter-chip" onclick="setHistoryFilter(2, this)">Drill</button>
+        <button class="filter-chip active" onclick="setHistoryFilter('all', this)">%TRAINING_ALL%</button>
+        <button class="filter-chip" onclick="setHistoryFilter(0, this)">%TRAINING_MODE_COMPETITION%</button>
+        <button class="filter-chip" onclick="setHistoryFilter(1, this)">%TRAINING_MODE_ALL_TARGETS%</button>
+        <button class="filter-chip" onclick="setHistoryFilter(2, this)">%TRAINING_MODE_DRILL%</button>
       </div>
 
       <!-- Summary Stats -->
       <div class="stats-bar">
         <div>
           <div class="s-val" id="stat-best">&ndash;</div>
-          <div class="s-lbl">Bestzeit</div>
+          <div class="s-lbl">%TRAINING_BEST_TIME%</div>
         </div>
         <div>
           <div class="s-val" id="stat-avg">&ndash;</div>
-          <div class="s-lbl">&Oslash; Schnitt</div>
+          <div class="s-lbl">%TRAINING_AVERAGE%</div>
         </div>
         <div>
           <div class="s-val" id="stat-count">0</div>
-          <div class="s-lbl">L&auml;ufe</div>
+          <div class="s-lbl">%TRAINING_RUNS%</div>
         </div>
       </div>
 
       <!-- History Items List -->
       <div id="hist-list" style="max-height: 220px; overflow-y: auto;">
-        <div style="color:#666;font-size:0.8rem;text-align:center;padding:8px;">Bisher keine L&auml;ufe gespeichert</div>
+        <div style="color:#666;font-size:0.8rem;text-align:center;padding:8px;">%TRAINING_NO_RUNS_SAVED%</div>
       </div>
 
       <!-- History Actions -->
       <div class="hist-actions">
-        <button class="btn-sm" onclick="exportHistoryCSV()">&#128203; CSV Kopieren</button>
-        <button class="btn-sm" style="color:#e94560;" onclick="clearHistory()">&#128465; Verlauf l&ouml;schen</button>
+        <button class="btn-sm" onclick="exportHistoryCSV()">%TRAINING_COPY_CSV%</button>
+        <button class="btn-sm" style="color:#e94560;" onclick="clearHistory()">%TRAINING_DELETE_HISTORY%</button>
       </div>
     </div>
 
     <div class="footer-links">
-      <a href="/settings">&#9881; Ger&auml;te-Einstellungen &amp; WLAN</a>
+      <a href="/settings">%TRAINING_SETTINGS_LINK%</a>
     </div>
   </div>
 
   <script>
+    const TEXT = {
+      wakeOff: '%TRAINING_WAKE_OFF%',
+      wakeOn: '%TRAINING_WAKE_ON%',
+      beepOff: '%TRAINING_BEEP_OFF%',
+      beepOn: '%TRAINING_BEEP_ON%',
+      modeCompetition: '%TRAINING_MODE_COMPETITION%',
+      modeAllTargets: '%TRAINING_MODE_ALL_TARGETS%',
+      modeDrill: '%TRAINING_MODE_DRILL%',
+      unknown: '%TRAINING_UNKNOWN%',
+      runs: '%TRAINING_RUNS%',
+      noRunsCategory: '%TRAINING_NO_RUNS_CATEGORY%',
+      noHits: '%TRAINING_NO_HITS%',
+      noEntries: '%TRAINING_NO_ENTRIES%',
+      csvHeader: '%TRAINING_CSV_HEADER%',
+      csvCopied: '%TRAINING_CSV_COPIED%',
+      csvPrompt: '%TRAINING_CSV_PROMPT%',
+      clearConfirm: '%TRAINING_CLEAR_CONFIRM%',
+      pinInvalid: '%TRAINING_PIN_INVALID%',
+      pairFailed: '%TRAINING_PAIR_FAILED%',
+      controller: '%TRAINING_CONTROLLER%',
+      pairPrompt: '%TRAINING_PAIR_PROMPT%',
+      otherPaired: '%TRAINING_OTHER_PAIRED%',
+      pcPriority: '%TRAINING_PC_PRIORITY%',
+      releaseMainMenu: '%TRAINING_RELEASE_MAIN_MENU%',
+      nextRun: '%TRAINING_NEXT_RUN%',
+      countdownStart: '%TRAINING_COUNTDOWN_START%',
+      abortCountdown: '%TRAINING_ABORT_COUNTDOWN%',
+      roundStop: '%TRAINING_ROUND_STOP%',
+      backToStandby: '%TRAINING_BACK_TO_STANDBY%',
+      discardRun: '%TRAINING_DISCARD_RUN%',
+      penaltyLabel: '%TRAINING_PENALTY_LABEL%',
+      stopPlate: '%TRAINING_STOP_PLATE%',
+      targetLabel: '%TRAINING_TARGET_LABEL%',
+      targetPrefix: '%TRAINING_TARGET_PREFIX%',
+      secondsUnit: '%TRAINING_SECONDS_UNIT%',
+      missAbbreviation: '%TRAINING_MISS_ABBREVIATION%'
+    };
+
     let audioEnabled = false;
     let audioCtx = null;
     let wakeLock = null;
     let wakeLockEnabled = false;
     let wakeVideo = null;
     let lastState = 'STANDBY';
+    let startBeepTimer = null;
+    let scheduledCountdownId = 0;
+    let beepedCountdownId = 0;
+    let estimatedReturnLatencyMs = 0;
+    let returnLatencyInitialized = false;
     let remoteToken = sessionStorage.getItem('es_remote_token') || '';
     let lastRecordedRoundId = localStorage.getItem('es_last_result_id') || '';
     let pollInterval = 200;
@@ -402,10 +445,10 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
       const btn = document.getElementById('btn-wake');
       if (active) {
         btn.classList.add('active');
-        btn.innerHTML = '&#9728; Wach: AN';
+        btn.innerHTML = TEXT.wakeOn;
       } else {
         btn.classList.remove('active');
-        btn.innerHTML = '&#9728; Wach: Aus';
+        btn.innerHTML = TEXT.wakeOff;
       }
     }
 
@@ -439,11 +482,12 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
       const btn = document.getElementById('btn-audio');
       if (audioEnabled) {
         btn.classList.add('active');
-        btn.innerHTML = '&#128266; Beep: AN';
+        btn.innerHTML = TEXT.beepOn;
         playBeep(700, 0.08, 'sine');
       } else {
         btn.classList.remove('active');
-        btn.innerHTML = '&#128266; Beep: Aus';
+        btn.innerHTML = TEXT.beepOff;
+        cancelScheduledStartBeep(true);
       }
       if (!wakeLockEnabled) {
         enableWakeLock();
@@ -488,6 +532,61 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
         saw.stop(now + duration);
       } catch (e) {
         console.error('Start beep error:', e);
+      }
+    }
+
+    function cancelScheduledStartBeep(resetCountdown) {
+      if (startBeepTimer !== null) {
+        clearTimeout(startBeepTimer);
+        startBeepTimer = null;
+      }
+      if (resetCountdown) {
+        scheduledCountdownId = 0;
+      }
+    }
+
+    function updateEstimatedReturnLatency(roundTripMs) {
+      const sampleMs = Math.max(0, roundTripMs / 2);
+      if (!Number.isFinite(sampleMs)) return estimatedReturnLatencyMs;
+      if (!returnLatencyInitialized) {
+        estimatedReturnLatencyMs = sampleMs;
+        returnLatencyInitialized = true;
+      } else {
+        const alpha = 0.2;
+        estimatedReturnLatencyMs += alpha * (sampleMs - estimatedReturnLatencyMs);
+      }
+      return estimatedReturnLatencyMs;
+    }
+
+    function synchronizeStartBeep(data, estimatedReturnLatencyMs) {
+      const countdownId = Number(data.countdownId) || 0;
+      if (!audioEnabled || !data.isController) {
+        cancelScheduledStartBeep(true);
+        return;
+      }
+
+      if (data.state === 'DELAY' && countdownId > 0) {
+        if (beepedCountdownId === countdownId) return;
+        cancelScheduledStartBeep(false);
+        scheduledCountdownId = countdownId;
+        const remainingMs = Number(data.startInMs) || 0;
+        const waitMs = Math.max(0, remainingMs - estimatedReturnLatencyMs);
+        startBeepTimer = setTimeout(() => {
+          startBeepTimer = null;
+          beepedCountdownId = countdownId;
+          playStartBeep();
+        }, waitMs);
+        return;
+      }
+
+      cancelScheduledStartBeep(false);
+      if (data.state === 'RUNNING' && lastState === 'DELAY' &&
+          countdownId > 0 && beepedCountdownId !== countdownId) {
+        scheduledCountdownId = countdownId;
+        beepedCountdownId = countdownId;
+        playStartBeep();
+      } else if (data.state !== 'RUNNING') {
+        scheduledCountdownId = 0;
       }
     }
 
@@ -540,13 +639,13 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
         year: 'numeric', month: '2-digit', day: '2-digit',
         hour: '2-digit', minute:'2-digit', second:'2-digit'
       });
-      const modeNames = ['Wettkampf', 'Alle Ziele', 'Drill'];
+      const modeNames = [TEXT.modeCompetition, TEXT.modeAllTargets, TEXT.modeDrill];
 
       const run = {
         id: result.id,
         timestamp: timeStr,
         mode: result.mode,
-        modeName: modeNames[result.mode] || 'Unbekannt',
+        modeName: modeNames[result.mode] || TEXT.unknown,
         rawTimeMs: result.rawTimeMs,
         finalTimeMs: result.timeMs,
         missCount: result.missCount || 0,
@@ -577,7 +676,7 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
         ? hist
         : hist.filter(h => h.mode === parseInt(historyFilter));
 
-      document.getElementById('hist-count-badge').innerText = filtered.length + ' L\u00e4ufe';
+      document.getElementById('hist-count-badge').innerText = filtered.length + ' ' + TEXT.runs;
 
       const bestEl = document.getElementById('stat-best');
       const avgEl = document.getElementById('stat-avg');
@@ -587,7 +686,7 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
       if (filtered.length === 0) {
         bestEl.innerText = '\u2013';
         avgEl.innerText = '\u2013';
-        document.getElementById('hist-list').innerHTML = '<div style="color:#666;font-size:0.8rem;text-align:center;padding:8px;">Keine L\u00e4ufe in dieser Kategorie</div>';
+        document.getElementById('hist-list').innerHTML = '<div style="color:#666;font-size:0.8rem;text-align:center;padding:8px;">' + TEXT.noRunsCategory + '</div>';
         return;
       }
 
@@ -598,12 +697,12 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
         sumMs += h.finalTimeMs;
       });
 
-      bestEl.innerText = (minMs / 1000).toFixed(3) + 's';
-      avgEl.innerText = ((sumMs / filtered.length) / 1000).toFixed(3) + 's';
+      bestEl.innerText = (minMs / 1000).toFixed(3) + TEXT.secondsUnit;
+      avgEl.innerText = ((sumMs / filtered.length) / 1000).toFixed(3) + TEXT.secondsUnit;
 
       let html = '';
       filtered.forEach(h => {
-        const pText = h.penaltyCount > 0 ? ('<span class="hist-penalty">+' + h.penaltyCount + 'M</span>') : '';
+        const pText = h.penaltyCount > 0 ? ('<span class="hist-penalty">+' + h.penaltyCount + TEXT.missAbbreviation + '</span>') : '';
         let splitsHtml = '';
         if (h.hits && h.hits.length > 0) {
           splitsHtml = '<div class="hist-splits" id="h-split-' + h.id + '">';
@@ -611,8 +710,8 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
           h.hits.forEach((hit, idx) => {
             const delta = (idx === 0) ? hit.splitMs : (hit.splitMs - prev);
             prev = hit.splitMs;
-            const tName = hit.target === 0 ? 'STOP' : ('T' + (hit.target + 1));
-            splitsHtml += '<div>#' + (idx + 1) + ' ' + tName + ': ' + (hit.splitMs / 1000).toFixed(3) + 's (+' + (delta / 1000).toFixed(3) + 's)</div>';
+            const tName = hit.target === 0 ? TEXT.stopPlate : (TEXT.targetPrefix + (hit.target + 1));
+            splitsHtml += '<div>#' + (idx + 1) + ' ' + tName + ': ' + (hit.splitMs / 1000).toFixed(3) + TEXT.secondsUnit + ' (+' + (delta / 1000).toFixed(3) + TEXT.secondsUnit + ')</div>';
           });
           splitsHtml += '</div>';
         }
@@ -620,7 +719,7 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
         html += '<div class="hist-item">' +
           '<div class="hist-main" onclick="toggleHistSplits(\'' + h.id + '\')">' +
             '<div><span class="hist-tag">' + h.modeName + '</span> <span style="color:#777;margin-left:4px;">' + h.timestamp + '</span></div>' +
-            '<div><span class="hist-time">' + (h.finalTimeMs / 1000).toFixed(3) + 's</span>' + pText + ' &#9662;</div>' +
+            '<div><span class="hist-time">' + (h.finalTimeMs / 1000).toFixed(3) + TEXT.secondsUnit + '</span>' + pText + ' &#9662;</div>' +
           '</div>' +
           splitsHtml +
         '</div>';
@@ -639,26 +738,26 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
     function exportHistoryCSV() {
       const hist = loadHistory();
       if (hist.length === 0) {
-        alert('Keine Eintr\u00e4ge vorhanden.');
+        alert(TEXT.noEntries);
         return;
       }
-      let csv = 'Zeitstempel,Modus,Rohzeit_s,Gesamtzeit_s,Miss_Count,Splits\n';
+      let csv = TEXT.csvHeader;
       hist.forEach(h => {
-        const splitsStr = (h.hits || []).map(s => (s.target === 0 ? 'STOP' : 'T' + (s.target + 1)) + ':' + (s.splitMs / 1000).toFixed(3)).join(' | ');
+        const splitsStr = (h.hits || []).map(s => (s.target === 0 ? TEXT.stopPlate : TEXT.targetPrefix + (s.target + 1)) + ':' + (s.splitMs / 1000).toFixed(3)).join(' | ');
         csv += '"' + h.timestamp + '","' + h.modeName + '",' + ((h.rawTimeMs || h.finalTimeMs) / 1000).toFixed(3) + ',' + (h.finalTimeMs / 1000).toFixed(3) + ',' + (h.missCount || 0) + ',"' + splitsStr + '"\n';
       });
 
       if (navigator.clipboard) {
         navigator.clipboard.writeText(csv).then(() => {
-          alert('Verlauf erfolgreich als CSV in die Zwischenablage kopiert!');
+          alert(TEXT.csvCopied);
         });
       } else {
-        prompt('CSV kopieren:', csv);
+        prompt(TEXT.csvPrompt, csv);
       }
     }
 
     function clearHistory() {
-      if (confirm('Gesamten Trainingsverlauf auf diesem Smartphone wirklich l\u00f6schen?')) {
+      if (confirm(TEXT.clearConfirm)) {
         localStorage.removeItem('es_history');
         renderHistoryUI();
       }
@@ -666,6 +765,9 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
 
     function sendAction(action, payload = {}) {
       if (!remoteToken) return;
+      if (action === 'stop' || action === 'reset') {
+        cancelScheduledStartBeep(true);
+      }
       if (audioEnabled) initAudio();
       if (!wakeLockEnabled) {
         enableWakeLock();
@@ -694,7 +796,7 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
       const input = document.getElementById('pair-pin');
       const pin = input.value.trim();
       if (!/^\d{4}$/.test(pin)) {
-        alert('Bitte den vierstelligen PIN vom ESP eingeben.');
+        alert(TEXT.pinInvalid);
         return;
       }
       fetch('/api/pair', {
@@ -707,7 +809,7 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
           sessionStorage.setItem('es_remote_token', remoteToken);
           input.value = '';
         } else {
-          alert(result.error || 'Kopplung fehlgeschlagen.');
+          alert(result.error || TEXT.pairFailed);
         }
       });
     }
@@ -723,17 +825,17 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
       remoteCard.style.borderColor = '#303443';
 
       if (data.isController) {
-        message.innerText = 'Dieses Handy steuert das Einzeltraining.';
+        message.innerText = TEXT.controller;
         remoteCard.style.borderColor = '#2d6a4f';
       } else if (data.remoteState === 'pairing') {
-        message.innerText = 'PIN vom ESP eingeben.';
+        message.innerText = TEXT.pairPrompt;
         pairRow.style.display = 'grid';
       } else if (data.remoteState === 'paired') {
-        message.innerText = 'Ein anderes Handy ist bereits gekoppelt.';
+        message.innerText = TEXT.otherPaired;
       } else if (data.remoteState === 'blocked') {
-        message.innerText = 'PC-Steuerung hat Vorrang.';
+        message.innerText = TEXT.pcPriority;
       } else {
-        message.innerText = 'Handy-Training im Netzwerk-Menü des ESP freigeben.';
+        message.innerText = TEXT.releaseMainMenu;
       }
     }
 
@@ -743,6 +845,7 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
 
     // --- State Polling & Render ---
     function updateDashboard() {
+      const requestStartedAt = performance.now();
       const headers = remoteToken ? {'X-EasySteel-Token': remoteToken} : {};
       fetch('/api/state', {headers: headers})
         .then(r => r.json())
@@ -764,19 +867,20 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
           resetBtn.disabled = !canControl || (data.state !== 'DELAY' && data.state !== 'RUNNING' && data.state !== 'FINISHED');
           modeBtns.forEach(b => b.disabled = !canControl || data.state !== 'STANDBY');
 
-          startBtn.querySelector('.btn-sub').innerText = data.state === 'FINISHED' ? 'Nächsten Lauf starten' : 'Countdown starten';
-          stopBtn.querySelector('.btn-sub').innerText = data.state === 'DELAY' ? 'Countdown abbrechen' : 'Runde stoppen';
-          resetBtn.querySelector('.btn-sub').innerText = data.state === 'FINISHED' ? 'Zurück zu Standby' : 'Lauf verwerfen';
+          startBtn.querySelector('.btn-sub').innerText = data.state === 'FINISHED' ? TEXT.nextRun : TEXT.countdownStart;
+          stopBtn.querySelector('.btn-sub').innerText = data.state === 'DELAY' ? TEXT.abortCountdown : TEXT.roundStop;
+          resetBtn.querySelector('.btn-sub').innerText = data.state === 'FINISHED' ? TEXT.backToStandby : TEXT.discardRun;
 
           // State badge
           const stateTag = document.getElementById('state-tag');
           stateTag.innerText = data.state;
           stateTag.className = 'state-badge state-' + data.state;
 
-          // Mirror the ESP start beep when polling observes the transition to RUNNING.
-          if (lastState === 'DELAY' && data.state === 'RUNNING') {
-            playStartBeep();
-          } else if (lastState === 'DELAY' && data.state === 'FALSE_START') {
+          const requestRoundTripMs = performance.now() - requestStartedAt;
+          const returnLatencyMs = updateEstimatedReturnLatency(requestRoundTripMs);
+          synchronizeStartBeep(data, returnLatencyMs);
+
+          if (lastState === 'DELAY' && data.state === 'FALSE_START') {
             playBeep(450, 0.5, 'sawtooth');
           } else if (lastState === 'RUNNING' && data.state === 'FINISHED') {
             playBeep(800, 0.08, 'sine');
@@ -795,7 +899,7 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
           // Penalty text
           const pEl = document.getElementById('penalty-val');
           if (data.state === 'FINISHED' && data.penaltyCount > 0) {
-            pEl.innerText = '+' + data.penaltyCount + ' Miss/Penalty (+' + (data.penaltyCount * 3.0).toFixed(1) + 's)';
+            pEl.innerText = '+' + data.penaltyCount + ' ' + TEXT.penaltyLabel + ' (+' + (data.penaltyCount * 3.0).toFixed(1) + TEXT.secondsUnit + ')';
           } else {
             pEl.innerText = '';
           }
@@ -828,26 +932,26 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
           const hits = data.hits || [];
           const listEl = document.getElementById('splits-list');
           if (hits.length === 0) {
-            listEl.innerHTML = '<div style="color:#666;font-size:0.8rem;text-align:center;padding:6px;">Noch keine Treffer erfasst</div>';
+            listEl.innerHTML = '<div style="color:#666;font-size:0.8rem;text-align:center;padding:6px;">' + TEXT.noHits + '</div>';
           } else {
             let html = '';
             let prev = 0;
             hits.forEach((h, idx) => {
               const delta = (idx === 0) ? h.splitMs : (h.splitMs - prev);
               prev = h.splitMs;
-              const name = h.target === 0 ? 'STOP PLATE' : ('Target ' + (h.target + 1));
+              const name = h.target === 0 ? TEXT.stopPlate : (TEXT.targetLabel + ' ' + (h.target + 1));
               const spEl = document.getElementById('split-' + h.target);
-              if (spEl) spEl.innerText = (h.splitMs / 1000).toFixed(3) + 's';
+              if (spEl) spEl.innerText = (h.splitMs / 1000).toFixed(3) + TEXT.secondsUnit;
 
               html += '<div class="split-row">' +
                 '<span class="label">#' + (idx + 1) + ' ' + name + '</span>' +
-                '<span class="val">' + (h.splitMs / 1000).toFixed(3) + 's <span class="delta">(+' + (delta / 1000).toFixed(3) + 's)</span></span>' +
+                '<span class="val">' + (h.splitMs / 1000).toFixed(3) + TEXT.secondsUnit + ' <span class="delta">(+' + (delta / 1000).toFixed(3) + TEXT.secondsUnit + ')</span></span>' +
                 '</div>';
             });
             listEl.innerHTML = html;
           }
 
-          // Gentle poll rate
+          // Active states use the normal live refresh rate; start audio is scheduled locally.
           if (data.state === 'RUNNING' || data.state === 'DELAY') {
             pollInterval = 200;
           } else {

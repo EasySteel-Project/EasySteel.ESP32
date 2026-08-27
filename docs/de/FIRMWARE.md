@@ -138,7 +138,7 @@ Der Standard-TCP-Port ist `53421`. Ereignisse und Bestätigungen sind in [PROTOC
 4. Genau ein Handy erhält ein ausschließlich im RAM gehaltenes Session-Token. Dashboard-Polling erneuert die 30-sekündige Inaktivitätsfrist.
 5. Physische Eingaben löschen einen wartenden Handy-Befehl. Eine Desktop-Verbindung widerruft das Handy sofort; nach Trennung ist eine neue physische Freigabe erforderlich.
 
-Das Dashboard erlaubt Start in `STANDBY` und `FINISHED`, Stop in `DELAY` und `RUNNING`, Reset in `DELAY`, `RUNNING` und `FINISHED` sowie die Moduswahl nur in `STANDBY`. HTTP-Handler prüfen und puffern genau einen begrenzten Befehl; der normale Round-Controller-Tick führt ihn aus. Ist **Beep** aktiviert, bildet das Handy den Übergang von `DELAY` zu `RUNNING` mit einem Startton nach. Durch das Polling kann dieser Ton bis zu einem Polling-Intervall verzögert sein; das tatsächliche Startsignal gibt deshalb der ESP32-Buzzer vor.
+Das Dashboard erlaubt Start in `STANDBY` und `FINISHED`, Stop in `DELAY` und `RUNNING`, Reset in `DELAY`, `RUNNING` und `FINISHED` sowie die Moduswahl nur in `STANDBY`. HTTP-Handler prüfen und puffern genau einen begrenzten Befehl; der normale Round-Controller-Tick führt ihn aus. Während `DELAY` liefert der ESP32 eine stabile Countdown-ID und die verbleibende Zeit. Das Handy behält das normale 200-ms-Polling bei und aktualisiert mit jeder erfolgreichen Statusantwort fortlaufend einen EWMA-Schätzwert für die halbe HTTP-Roundtrip-Zeit. Jede `DELAY`-Antwort plant den aktivierten **Beep** mit dem neuesten Wert neu. Asymmetrische Netzlaufzeiten und Browser-Scheduling können weiterhin Jitter verursachen; das tatsächliche Startsignal gibt deshalb der ESP32-Buzzer vor.
 
 ### Übertragungsverhalten
 

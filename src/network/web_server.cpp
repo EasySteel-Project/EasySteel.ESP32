@@ -8,6 +8,7 @@
 #include "network.h"
 #include "sensor_isr.h"
 #include "round_controller.h"
+#include "strings.h"
 
 #include <WiFi.h>
 #include <WebServer.h>
@@ -108,6 +109,68 @@ static void sendTemplate(const char* tpl, const TemplateVar* vars, size_t varCou
   }
 
   httpServer->sendContent(""); // End chunked transfer
+}
+
+static void handleTraining()
+{
+  const TemplateVar vars[] = {
+    {"TRAINING_PAGE_TITLE", STR_TRAINING_PAGE_TITLE},
+    {"APP_NAME", STR_APP_NAME},
+    {"TRAINING_WAKE_OFF", STR_TRAINING_WAKE_OFF},
+    {"TRAINING_WAKE_ON", STR_TRAINING_WAKE_ON},
+    {"TRAINING_BEEP_OFF", STR_TRAINING_BEEP_OFF},
+    {"TRAINING_BEEP_ON", STR_TRAINING_BEEP_ON},
+    {"TRAINING_PC_LOCKED", STR_TRAINING_PC_LOCKED},
+    {"TRAINING_RELEASE_REQUIRED", STR_TRAINING_RELEASE_REQUIRED},
+    {"TRAINING_PIN_PLACEHOLDER", STR_TRAINING_PIN_PLACEHOLDER},
+    {"TRAINING_PAIR", STR_TRAINING_PAIR},
+    {"TRAINING_STANDBY", STR_PREPARE},
+    {"TRAINING_TARGET_PREFIX", STR_TRAINING_TARGET_PREFIX},
+    {"TRAINING_STOP_PLATE", STR_STOP_PLATE},
+    {"TRAINING_MODE_COMPETITION", STR_MODE_COMPETITION},
+    {"TRAINING_MODE_ALL_TARGETS", STR_MODE_ALL_TARGETS},
+    {"TRAINING_MODE_DRILL", STR_MODE_TAG_DRILL},
+    {"TRAINING_START", STR_TRAINING_START},
+    {"TRAINING_STOP", STR_TRAINING_STOP},
+    {"TRAINING_RESET_ACTION", STR_RESET},
+    {"TRAINING_COUNTDOWN_START", STR_TRAINING_COUNTDOWN_START},
+    {"TRAINING_ROUND_STOP", STR_TRAINING_ROUND_STOP},
+    {"TRAINING_RESET", STR_TRAINING_RESET},
+    {"TRAINING_CURRENT_SPLITS", STR_TRAINING_CURRENT_SPLITS},
+    {"TRAINING_NO_HITS", STR_TRAINING_NO_HITS},
+    {"TRAINING_HISTORY_LOCAL", STR_TRAINING_HISTORY_LOCAL},
+    {"TRAINING_RUNS", STR_TRAINING_RUNS},
+    {"TRAINING_ALL", STR_TRAINING_ALL},
+    {"TRAINING_BEST_TIME", STR_TRAINING_BEST_TIME},
+    {"TRAINING_AVERAGE", STR_TRAINING_AVERAGE},
+    {"TRAINING_NO_RUNS_SAVED", STR_TRAINING_NO_RUNS_SAVED},
+    {"TRAINING_COPY_CSV", STR_TRAINING_COPY_CSV},
+    {"TRAINING_DELETE_HISTORY", STR_TRAINING_DELETE_HISTORY},
+    {"TRAINING_SETTINGS_LINK", STR_TRAINING_SETTINGS_LINK},
+    {"TRAINING_UNKNOWN", STR_TRAINING_UNKNOWN},
+    {"TRAINING_NO_RUNS_CATEGORY", STR_TRAINING_NO_RUNS_CATEGORY},
+    {"TRAINING_NO_ENTRIES", STR_TRAINING_NO_ENTRIES},
+    {"TRAINING_CSV_HEADER", STR_TRAINING_CSV_HEADER},
+    {"TRAINING_CSV_COPIED", STR_TRAINING_CSV_COPIED},
+    {"TRAINING_CSV_PROMPT", STR_TRAINING_CSV_PROMPT},
+    {"TRAINING_CLEAR_CONFIRM", STR_TRAINING_CLEAR_CONFIRM},
+    {"TRAINING_PIN_INVALID", STR_TRAINING_PIN_INVALID},
+    {"TRAINING_PAIR_FAILED", STR_TRAINING_PAIR_FAILED},
+    {"TRAINING_CONTROLLER", STR_TRAINING_CONTROLLER},
+    {"TRAINING_PAIR_PROMPT", STR_TRAINING_PAIR_PROMPT},
+    {"TRAINING_OTHER_PAIRED", STR_TRAINING_OTHER_PAIRED},
+    {"TRAINING_PC_PRIORITY", STR_TRAINING_PC_PRIORITY},
+    {"TRAINING_RELEASE_MAIN_MENU", STR_TRAINING_RELEASE_MAIN_MENU},
+    {"TRAINING_NEXT_RUN", STR_TRAINING_NEXT_RUN},
+    {"TRAINING_ABORT_COUNTDOWN", STR_TRAINING_ABORT_COUNTDOWN},
+    {"TRAINING_BACK_TO_STANDBY", STR_TRAINING_BACK_TO_STANDBY},
+    {"TRAINING_DISCARD_RUN", STR_TRAINING_DISCARD_RUN},
+    {"TRAINING_PENALTY_LABEL", STR_TRAINING_PENALTY_LABEL},
+    {"TRAINING_TARGET_LABEL", STR_TRAINING_TARGET_LABEL},
+    {"TRAINING_SECONDS_UNIT", STR_TRAINING_SECONDS_UNIT},
+    {"TRAINING_MISS_ABBREVIATION", STR_TRAINING_MISS_ABBREVIATION}
+  };
+  sendTemplate(TRAINING_PAGE, vars, sizeof(vars) / sizeof(vars[0]));
 }
 
 static void handleResetWifi()
@@ -295,6 +358,8 @@ static void handleApiState()
   bool isController = remoteControlAuthorize(token.c_str(), currentMillis);
   RemoteControlState remoteState = remoteControlGetState();
   unsigned long timeMs = roundControllerGetElapsedMs(currentMillis);
+  unsigned long countdownId = roundControllerGetCountdownId();
+  unsigned long startInMs = roundControllerGetStartDelayRemainingMs(currentMillis);
   int mode = roundControllerGetRoundMode();
   int targetCount = roundControllerGetTargetCount();
   int penaltyCount = roundControllerGetPenaltyCount();
@@ -313,9 +378,11 @@ static void handleApiState()
     jsonBuf,
     sizeof(jsonBuf),
     offset,
-    "{\"state\":\"%s\",\"timeMs\":%lu,\"mode\":%d,\"targetCount\":%d,\"penaltyCount\":%d,\"missCount\":%d,\"remoteState\":\"%s\",\"isController\":%s,\"pcConnected\":%s,\"hitMask\":[%s,%s,%s,%s,%s],\"hits\":[",
+    "{\"state\":\"%s\",\"timeMs\":%lu,\"countdownId\":%lu,\"startInMs\":%lu,\"mode\":%d,\"targetCount\":%d,\"penaltyCount\":%d,\"missCount\":%d,\"remoteState\":\"%s\",\"isController\":%s,\"pcConnected\":%s,\"hitMask\":[%s,%s,%s,%s,%s],\"hits\":[",
     stateStr,
     timeMs,
+    countdownId,
+    startInMs,
     mode,
     targetCount,
     penaltyCount,
@@ -703,10 +770,10 @@ void webServerInitSTA(String& deviceName, String& serverIP, uint16_t& tcpPort, c
 
   // Serve Solo Training Dashboard on root and /training
   httpServer->on("/", HTTP_GET, []() {
-    if (httpServer) httpServer->send(200, "text/html", TRAINING_PAGE);
+    handleTraining();
   });
   httpServer->on("/training", HTTP_GET, []() {
-    if (httpServer) httpServer->send(200, "text/html", TRAINING_PAGE);
+    handleTraining();
   });
 
   // Settings page

@@ -17,3 +17,12 @@ State roundStateAdvanceFalseStart(
 
 /// Return whether Reset must abort the current active state immediately.
 bool roundStateAllowsImmediateReset(State currentState);
+
+/// Advance a non-zero countdown identifier with rollover handling.
+uint32_t roundStateNextCountdownId(uint32_t currentId);
+
+/// Return the rollover-safe remaining delay until the start signal.
+uint32_t roundStateGetStartDelayRemainingMs(
+  State currentState,
+  uint32_t delayEndTime,
+  uint32_t currentMillis);
