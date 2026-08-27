@@ -34,7 +34,7 @@ static bool requireAdminAuthentication()
   if (httpServer->authenticate("admin", adminPassword.c_str()))
     return true;
 
-  httpServer->requestAuthentication(BASIC_AUTH, "EasySteel", "Authentication required");
+  httpServer->requestAuthentication(BASIC_AUTH, STR_APP_NAME, STR_WEB_AUTHENTICATION_REQUIRED);
   return false;
 }
 
@@ -111,6 +111,31 @@ static void sendTemplate(const char* tpl, const TemplateVar* vars, size_t varCou
   httpServer->sendContent(""); // End chunked transfer
 }
 
+static void sendSuccessPage(const char *message)
+{
+  const TemplateVar vars[] = {
+    {"WEB_SUCCESS_PAGE_TITLE", STR_WEB_SUCCESS_PAGE_TITLE},
+    {"WEB_SUCCESS_HEADING", STR_WEB_SUCCESS_HEADING},
+    {"MESSAGE", message}
+  };
+  sendTemplate(SUCCESS_PAGE, vars, sizeof(vars) / sizeof(vars[0]));
+}
+
+static void sendJsonError(int statusCode, const char *message, bool includeSuccess)
+{
+  if (!httpServer)
+  {
+    return;
+  }
+
+  char response[192];
+  const char *format = includeSuccess
+    ? "{\"success\":false,\"error\":\"%s\"}"
+    : "{\"error\":\"%s\"}";
+  snprintf(response, sizeof(response), format, message);
+  httpServer->send(statusCode, "application/json", response);
+}
+
 static void handleTraining()
 {
   const TemplateVar vars[] = {
@@ -167,7 +192,7 @@ static void handleTraining()
     {"TRAINING_DISCARD_RUN", STR_TRAINING_DISCARD_RUN},
     {"TRAINING_PENALTY_LABEL", STR_TRAINING_PENALTY_LABEL},
     {"TRAINING_TARGET_LABEL", STR_TRAINING_TARGET_LABEL},
-    {"TRAINING_SECONDS_UNIT", STR_TRAINING_SECONDS_UNIT},
+    {"TRAINING_SECONDS_UNIT", STR_UNIT_SECONDS},
     {"TRAINING_MISS_ABBREVIATION", STR_TRAINING_MISS_ABBREVIATION}
   };
   sendTemplate(TRAINING_PAGE, vars, sizeof(vars) / sizeof(vars[0]));
@@ -182,16 +207,13 @@ static void handleResetWifi()
 
   if (httpServer->method() != HTTP_POST)
   {
-    httpServer->send(405, "text/plain", "Method Not Allowed");
+    httpServer->send(405, "text/plain", STR_WEB_METHOD_NOT_ALLOWED);
     return;
   }
 
   networkResetCredentials();
 
-  const TemplateVar vars[] = {
-    {"MESSAGE", "WiFi reset. Restarting into setup mode..."}
-  };
-  sendTemplate(SUCCESS_PAGE, vars, 1);
+  sendSuccessPage(STR_WEB_WIFI_RESET_MESSAGE);
 
   delay(2000);
   ESP.restart();
@@ -201,9 +223,28 @@ static void handleWifiSetup(const String& deviceName)
 {
   Serial.println("[HTTP] GET / - serving WiFi setup page");
   const TemplateVar vars[] = {
-    {"DEVICE_NAME", deviceName}
+    {"WEB_WIFI_SETUP_TITLE", STR_WEB_WIFI_SETUP_TITLE},
+    {"WEB_WIFI_SETUP_HEADING", STR_WEB_WIFI_SETUP_HEADING},
+    {"WEB_WIFI_SETUP_SUBTITLE", STR_WEB_WIFI_SETUP_SUBTITLE},
+    {"WEB_AVAILABLE_NETWORKS", STR_WEB_AVAILABLE_NETWORKS},
+    {"WEB_RESCAN", STR_WEB_RESCAN},
+    {"WEB_SCANNING_NETWORKS", STR_WEB_SCANNING_NETWORKS},
+    {"WEB_WIFI_NAME", STR_WEB_WIFI_NAME},
+    {"WEB_NETWORK_NAME", STR_WEB_NETWORK_NAME},
+    {"WEB_PASSWORD", STR_WEB_PASSWORD},
+    {"WEB_WIFI_PASSWORD", STR_WEB_WIFI_PASSWORD},
+    {"WEB_SAVE_AND_CONNECT", STR_WEB_SAVE_AND_CONNECT},
+    {"WEB_OR", STR_WEB_OR},
+    {"WEB_WPS_HINT", STR_WEB_WPS_HINT},
+    {"WEB_WPS_START", STR_WEB_WPS_START},
+    {"DEVICE_NAME", deviceName},
+    {"WEB_NO_NETWORKS", STR_WEB_NO_NETWORKS},
+    {"WEB_SELECT_NETWORK_PREFIX", STR_WEB_SELECT_NETWORK_PREFIX},
+    {"WEB_SELECT_NETWORK_SUFFIX", STR_WEB_SELECT_NETWORK_SUFFIX},
+    {"WEB_MANUAL_ENTRY", STR_WEB_MANUAL_ENTRY},
+    {"WEB_SIGNAL_UNIT", STR_WEB_SIGNAL_UNIT}
   };
-  sendTemplate(WIFI_SETUP_PAGE, vars, 1);
+  sendTemplate(WIFI_SETUP_PAGE, vars, sizeof(vars) / sizeof(vars[0]));
 }
 
 static void handleSaveWifi()
@@ -216,16 +257,13 @@ static void handleSaveWifi()
 
   if (ssid.length() == 0)
   {
-    httpServer->send(400, "text/plain", "SSID required");
+    httpServer->send(400, "text/plain", STR_WEB_SSID_REQUIRED);
     return;
   }
 
   storageSaveWiFi(ssid, pass);
 
-  const TemplateVar vars[] = {
-    {"MESSAGE", "Restarting device...<br>Connect to your WiFi and look for the device."}
-  };
-  sendTemplate(SUCCESS_PAGE, vars, 1);
+  sendSuccessPage(STR_WEB_WIFI_RESTART_MESSAGE);
 
   Serial.println("WiFi credentials saved. Restarting...");
   delay(2000);
@@ -236,7 +274,12 @@ static void handleWPS()
 {
   if (!httpServer) return;
 
-  httpServer->send(200, "text/html", WPS_PAGE);
+  const TemplateVar vars[] = {
+    {"WEB_WPS_PAGE_TITLE", STR_WEB_WPS_PAGE_TITLE},
+    {"WEB_WPS_ACTIVE", STR_WEB_WPS_ACTIVE},
+    {"WEB_WPS_WAITING", STR_WEB_WPS_WAITING}
+  };
+  sendTemplate(WPS_PAGE, vars, sizeof(vars) / sizeof(vars[0]));
   wpsPending = true;
 }
 
@@ -246,13 +289,36 @@ static void handleSettings(const String& deviceName, const String& serverIP, uin
     return;
 
   const TemplateVar vars[] = {
+    {"WEB_SETTINGS_TITLE", STR_WEB_SETTINGS_TITLE},
+    {"WEB_SETTINGS_HEADING", STR_WEB_SETTINGS_HEADING},
+    {"WEB_SETTINGS_SUBTITLE", STR_WEB_SETTINGS_SUBTITLE},
+    {"WEB_DEVICE_NAME", STR_WEB_DEVICE_NAME},
     {"DEVICE_NAME", deviceName},
+    {"WEB_SERVER_IP", STR_SERVER_IP},
     {"SERVER_IP", serverIP},
+    {"WEB_SERVER_IP_PLACEHOLDER", STR_WEB_SERVER_IP_PLACEHOLDER},
+    {"WEB_TCP_PORT", STR_PORT},
+    {"WEB_SAVE_SETTINGS", STR_WEB_SAVE_SETTINGS},
+    {"WEB_SSID", STR_SSID},
     {"WIFI_SSID", WiFi.SSID()},
+    {"WEB_IP", STR_WEB_IP},
     {"DEVICE_IP", WiFi.localIP().toString()},
-    {"TCP_PORT", String(tcpPort)}
+    {"WEB_PORT", STR_WEB_PORT},
+    {"TCP_PORT", String(tcpPort)},
+    {"WEB_FIRMWARE_UPDATE", STR_WEB_FIRMWARE_UPDATE},
+    {"WEB_FLASH_FIRMWARE", STR_WEB_FLASH_FIRMWARE},
+    {"WEB_RESET_WIFI_CONFIRM", STR_WEB_RESET_WIFI_CONFIRM},
+    {"WEB_RESET_WIFI", STR_WEB_RESET_WIFI},
+    {"WEB_INSTALL_FIRMWARE_PREFIX", STR_WEB_INSTALL_FIRMWARE_PREFIX},
+    {"WEB_INSTALL_FIRMWARE_SUFFIX", STR_WEB_INSTALL_FIRMWARE_SUFFIX},
+    {"WEB_UPLOAD_RUNNING", STR_WEB_UPLOAD_RUNNING},
+    {"WEB_FLASHING_PREFIX", STR_WEB_FLASHING_PREFIX},
+    {"WEB_UPDATE_SUCCESS", STR_WEB_UPDATE_SUCCESS},
+    {"WEB_ERROR_PREFIX", STR_WEB_ERROR_PREFIX},
+    {"WEB_CONNECTION_INTERRUPTED", STR_WEB_CONNECTION_INTERRUPTED},
+    {"WEB_PERCENT_UNIT", STR_WEB_PERCENT_UNIT}
   };
-  sendTemplate(SETTINGS_PAGE, vars, 5);
+  sendTemplate(SETTINGS_PAGE, vars, sizeof(vars) / sizeof(vars[0]));
 }
 
 static void handleSaveSettings(String& deviceName, String& serverIP, uint16_t& tcpPort)
@@ -283,10 +349,7 @@ static void handleSaveSettings(String& deviceName, String& serverIP, uint16_t& t
 
   networkSendEvent("settings_changed", -1, 0);
 
-  const TemplateVar vars[] = {
-    {"MESSAGE", "Settings saved.<br><a href='/settings' style='color:#4ecca3'>Back to Settings</a>"}
-  };
-  sendTemplate(SUCCESS_PAGE, vars, 1);
+  sendSuccessPage(STR_WEB_SETTINGS_SAVED_MESSAGE);
 
   Serial.print("Device name: ");
   Serial.println(name);
@@ -449,7 +512,7 @@ static void handleApiState()
 
   if (!complete)
   {
-    httpServer->send(500, "application/json", "{\"error\":\"State response overflow\"}");
+    sendJsonError(500, STR_WEB_API_STATE_OVERFLOW, false);
     return;
   }
   httpServer->send(200, "application/json", jsonBuf);
@@ -464,7 +527,7 @@ static void handleApiPair()
   DeserializationError error = deserializeJson(request, body);
   if (error)
   {
-    httpServer->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
+    sendJsonError(400, STR_WEB_API_INVALID_JSON, true);
     return;
   }
 
@@ -480,15 +543,15 @@ static void handleApiPair()
   }
   if (result == RemotePairResult::AttemptsExceeded)
   {
-    httpServer->send(429, "application/json", "{\"success\":false,\"error\":\"Pairing closed after five attempts\"}");
+    sendJsonError(429, STR_WEB_API_PAIRING_ATTEMPTS, true);
     return;
   }
   if (result == RemotePairResult::InvalidPin)
   {
-    httpServer->send(403, "application/json", "{\"success\":false,\"error\":\"Invalid PIN\"}");
+    sendJsonError(403, STR_WEB_API_INVALID_PIN, true);
     return;
   }
-  httpServer->send(409, "application/json", "{\"success\":false,\"error\":\"Pairing is not active\"}");
+  sendJsonError(409, STR_WEB_API_PAIRING_INACTIVE, true);
 }
 
 static void handleApiAction()
@@ -497,7 +560,7 @@ static void handleApiAction()
 
   if (httpServer->method() != HTTP_POST)
   {
-    httpServer->send(405, "application/json", "{\"success\":false,\"error\":\"Method Not Allowed\"}");
+    sendJsonError(405, STR_WEB_METHOD_NOT_ALLOWED, true);
     return;
   }
 
@@ -505,7 +568,7 @@ static void handleApiAction()
   unsigned long currentMillis = millis();
   if (!remoteControlAuthorize(token.c_str(), currentMillis))
   {
-    httpServer->send(401, "application/json", "{\"success\":false,\"error\":\"Phone is not paired\"}");
+    sendJsonError(401, STR_WEB_API_PHONE_NOT_PAIRED, true);
     return;
   }
 
@@ -514,7 +577,7 @@ static void handleApiAction()
   DeserializationError error = deserializeJson(req, body);
   if (error)
   {
-    httpServer->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
+    sendJsonError(400, STR_WEB_API_INVALID_JSON, true);
     return;
   }
 
@@ -548,13 +611,13 @@ static void handleApiAction()
 
   if (!recognized || !remoteControlActionAllowed(remoteAction, state, actionValue))
   {
-    httpServer->send(409, "application/json", "{\"success\":false,\"error\":\"Action is not allowed in the current state\"}");
+    sendJsonError(409, STR_WEB_API_ACTION_NOT_ALLOWED, true);
     return;
   }
 
   if (!remoteControlQueueCommand(remoteAction, actionValue))
   {
-    httpServer->send(409, "application/json", "{\"success\":false,\"error\":\"Command slot is busy\"}");
+    sendJsonError(409, STR_WEB_API_COMMAND_BUSY, true);
     return;
   }
   httpServer->send(202, "application/json", "{\"success\":true}");
@@ -645,7 +708,7 @@ static void registerUpdateHandler()
 
     if (browserOtaRejected)
     {
-      httpServer->send(423, "text/plain", "Device must be idle before firmware update");
+      httpServer->send(423, "text/plain", STR_WEB_OTA_IDLE_REQUIRED);
       browserOtaRejected = false;
       return;
     }
@@ -656,14 +719,14 @@ static void registerUpdateHandler()
     if (success)
     {
       Serial.println("[OTA] Browser update completed successfully. Restarting...");
-      displayUpdate("OTA UPDATE", "Erfolgreich!");
+      displayUpdate(STR_WEB_OTA_DISPLAY_TITLE, STR_WEB_OTA_SUCCESS);
       delay(1000);
       ESP.restart();
     }
     else
     {
       Serial.printf("[OTA] Browser update failed: error %u\n", Update.getError());
-      displayUpdate("OTA FEHLER", "Abbruch");
+      displayUpdate(STR_WEB_OTA_ERROR_TITLE, STR_WEB_OTA_ABORT);
     }
   }, []() {
     HTTPUpload& upload = httpServer->upload();
@@ -683,7 +746,7 @@ static void registerUpdateHandler()
       WiFi.setSleep(false);
       browserOtaActive = true;
       Serial.printf("[OTA] Browser Upload Start: %s\n", upload.filename.c_str());
-      displayUpdate("OTA BROWSER", "Flashe...");
+      displayUpdate(STR_WEB_OTA_BROWSER_TITLE, STR_WEB_OTA_FLASHING);
 
       if (!Update.begin(UPDATE_SIZE_UNKNOWN))
       {
@@ -799,12 +862,12 @@ void webServerInitSTA(String& deviceName, String& serverIP, uint16_t& tcpPort, c
     sensorIsrDisable();
     WiFi.setSleep(false);
     Serial.println("OTA Start");
-    displayUpdate("OTA UPDATE", "Flashe...");
+    displayUpdate(STR_WEB_OTA_DISPLAY_TITLE, STR_WEB_OTA_FLASHING);
   });
   ArduinoOTA.onEnd([]() {
     watchdogEnable();
     Serial.println("\nOTA End");
-    displayUpdate("OTA UPDATE", "Erfolgreich!");
+    displayUpdate(STR_WEB_OTA_DISPLAY_TITLE, STR_WEB_OTA_SUCCESS);
   });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
     watchdogFeed();
@@ -816,7 +879,7 @@ void webServerInitSTA(String& deviceName, String& serverIP, uint16_t& tcpPort, c
   ArduinoOTA.onError([](ota_error_t error) {
     watchdogEnable();
     Serial.printf("Error[%u]: ", error);
-    displayUpdate("OTA FEHLER", "Abbruch");
+    displayUpdate(STR_WEB_OTA_ERROR_TITLE, STR_WEB_OTA_ABORT);
   });
 
   ArduinoOTA.begin();

@@ -40,7 +40,7 @@ static void drawNetworkStatus()
   if (networkIsProvisioning())
   {
     oled.setCursor(95, 0);
-    oled.print("AP");
+    oled.print(STR_NETWORK_AP_GLYPH);
     return;
   }
 
@@ -48,7 +48,7 @@ static void drawNetworkStatus()
   {
     // Draw an 'x' representing offline state
     oled.setCursor(95, 0);
-    oled.print("x");
+    oled.print(STR_NETWORK_OFFLINE_GLYPH);
     return;
   }
 
@@ -161,7 +161,7 @@ static void drawTargetMiniBoxes(int y, const bool hitMask[5], int targetCount)
     oled.setCursor(bx + ((targetId == 0) ? 3 : 6), y + 1);
     if (targetId == 0)
     {
-      oled.print("ST");
+      oled.print(STR_STOP_PLATE_SHORT);
     }
     else
     {
@@ -197,7 +197,7 @@ void displayUpdateStandby(
   }
   else
   {
-    snprintf(modeTag, sizeof(modeTag), "%s(%dZ)", (roundMode == 1) ? STR_MODE_TAG_ALL : STR_MODE_TAG_WK, targetCount);
+    snprintf(modeTag, sizeof(modeTag), STR_MODE_TAG_TARGET_COUNT_FORMAT, (roundMode == 1) ? STR_MODE_TAG_ALL : STR_MODE_TAG_WK, targetCount);
   }
   int tagLen = strlen(modeTag);
 
@@ -475,7 +475,7 @@ void displayUpdateSplitDetail(int hitIndex, int totalHits, int targetId, const c
   {
     oled.print(STR_SPLIT_PREFIX);
     oled.print(deltaStr);
-    oled.print("s");
+    oled.print(STR_UNIT_SECONDS);
   }
 
   // Footer legend at y=56
@@ -710,7 +710,7 @@ void displayUpdateMenuList(const char *headerTitle, const char *const *items, in
     snprintf(buf, sizeof(buf), "%.20s", items[selectedIndex - 1]);
     oled.print(buf);
     oled.setCursor(120, 23);
-    oled.print("^");
+    oled.print(STR_MENU_PREVIOUS_GLYPH);
   }
 
   // Selected item (highlighted) at y = 33
@@ -719,7 +719,7 @@ void displayUpdateMenuList(const char *headerTitle, const char *const *items, in
     oled.fillRect(0, 32, 128, 10, SH110X_WHITE);
     oled.setTextColor(SH110X_BLACK, SH110X_WHITE);
     oled.setCursor(2, 33);
-    oled.print(">");
+    oled.print(STR_MENU_SELECTED_GLYPH);
     oled.setCursor(8, 33);
     char buf[22];
     snprintf(buf, sizeof(buf), "%.20s", items[selectedIndex]);
@@ -735,7 +735,7 @@ void displayUpdateMenuList(const char *headerTitle, const char *const *items, in
     snprintf(buf, sizeof(buf), "%.20s", items[selectedIndex + 1]);
     oled.print(buf);
     oled.setCursor(120, 43);
-    oled.print("v");
+    oled.print(STR_MENU_NEXT_GLYPH);
   }
 
   // Divider and Footer
@@ -848,7 +848,7 @@ void displayUpdateSensorMatrix(const bool hitTargets[5], int lastHitIndex)
 
   // Draw 5 Target boxes: 1, 2, 3, 4, STOP
   // Targets 1..4 are indices 1..4 in hitTargets; STOP is index 0 in hitTargets.
-  const char *labels[5] = {"1", "2", "3", "4", "ST"};
+  const char *labels[5] = {"1", "2", "3", "4", STR_STOP_PLATE_SHORT};
   const int targetMap[5] = {1, 2, 3, 4, 0};
 
   for (int i = 0; i < 5; i++)
@@ -913,17 +913,17 @@ void displayUpdateDeviceInfo(const char *fwVersion, const char *deviceName, cons
 
   oled.setCursor(0, 23);
   char buf[24];
-  snprintf(buf, sizeof(buf), "FW: %.16s", fwVersion ? fwVersion : "v1.0");
+  snprintf(buf, sizeof(buf), STR_DEVICE_INFO_FW_FORMAT, fwVersion ? fwVersion : STR_FIRMWARE_FALLBACK);
   oled.print(buf);
 
   oled.setCursor(0, 33);
-  snprintf(buf, sizeof(buf), "IP: %.16s", (ip && strlen(ip) > 0) ? ip : STR_MANUAL_MODE);
+  snprintf(buf, sizeof(buf), STR_DEVICE_INFO_IP_FORMAT, (ip && strlen(ip) > 0) ? ip : STR_MANUAL_MODE);
   oled.print(buf);
 
   unsigned long mins = uptimeSec / 60;
   unsigned long secs = uptimeSec % 60;
   oled.setCursor(0, 43);
-  snprintf(buf, sizeof(buf), "Up: %lum %02lus  ID: %.6s", mins, secs, deviceName ? deviceName : "-");
+  snprintf(buf, sizeof(buf), STR_DEVICE_INFO_UPTIME_FORMAT, mins, secs, deviceName ? deviceName : STR_VALUE_UNAVAILABLE);
   oled.print(buf);
 
   // Divider and Footer

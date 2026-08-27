@@ -164,7 +164,7 @@ static void updateFinishedDisplay()
   char timeStr[16];
   unsigned long secs = endTime / 1000;
   unsigned long ms = endTime % 1000;
-  snprintf(timeStr, sizeof(timeStr), "%lu.%03lu", secs, ms);
+  snprintf(timeStr, sizeof(timeStr), STR_TIME_VALUE_FORMAT, secs, ms);
 
   if (roundMode == 2)
   {
@@ -186,12 +186,12 @@ static void updateFinishedDisplay()
     char splitStr[16];
     unsigned long sSecs = hr.splitTime / 1000;
     unsigned long sMs = hr.splitTime % 1000;
-    snprintf(splitStr, sizeof(splitStr), "%lu.%03lu", sSecs, sMs);
+    snprintf(splitStr, sizeof(splitStr), STR_TIME_VALUE_FORMAT, sSecs, sMs);
 
     char deltaStr[16] = "";
     unsigned long prevTime = (displayCycleIndex == 1) ? 0 : recordedHits[displayCycleIndex - 2].splitTime;
     unsigned long delta = hr.splitTime - prevTime;
-    snprintf(deltaStr, sizeof(deltaStr), "%lu.%03lu", delta / 1000, delta % 1000);
+    snprintf(deltaStr, sizeof(deltaStr), STR_TIME_VALUE_FORMAT, delta / 1000, delta % 1000);
 
     displayUpdateSplitDetail(displayCycleIndex, recordedHitCount, hr.targetId, splitStr, deltaStr, penaltyCount);
   }
@@ -296,7 +296,7 @@ static void startRound(unsigned long currentMillis)
   sensorIsrEnable(true);
   buzzerPlay(BuzzerPattern::Start, currentMillis);
   lastRunningDispUpdate = currentMillis;
-  displayUpdateBigTime(STR_GO, "0.0", "s");
+  displayUpdateBigTime(STR_GO, STR_INITIAL_TIME_VALUE, STR_UNIT_SECONDS);
   networkSendEvent("start", -1, 0);
   Serial.println("[ROUND] Round started!");
 }
@@ -778,7 +778,7 @@ void roundControllerTick(unsigned long currentMillis)
       unsigned long secs = dispTimeMs / 1000;
       unsigned long ms = (dispTimeMs % 1000) / 100;
       char runningTimeStr[16];
-      snprintf(runningTimeStr, sizeof(runningTimeStr), "%lu.%lu", secs, ms);
+      snprintf(runningTimeStr, sizeof(runningTimeStr), STR_RUNNING_TIME_VALUE_FORMAT, secs, ms);
 
       bool hitMask[MAX_TARGETS] = {false};
       for (int i = 0; i < MAX_TARGETS; i++)

@@ -9,7 +9,7 @@ const char WIFI_SETUP_PAGE[] PROGMEM = R"rawliteral(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>EasySteel WiFi Setup</title>
+  <title>%WEB_WIFI_SETUP_TITLE%</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -65,51 +65,60 @@ const char WIFI_SETUP_PAGE[] PROGMEM = R"rawliteral(
 </head>
 <body>
   <div class="card">
-    <h1>&#9881; EasySteel WiFi Setup</h1>
-    <p class="sub">WLAN ausw&auml;hlen oder manuell eingeben.</p>
+    <h1>%WEB_WIFI_SETUP_HEADING%</h1>
+    <p class="sub">%WEB_WIFI_SETUP_SUBTITLE%</p>
     <form method="POST" action="/save-wifi">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-        <label for="ssid-select" style="margin:0;">Verf&uuml;gbare Netzwerke</label>
-        <a href="#" onclick="doScan();return false;" style="color:#e94560;font-size:0.8rem;text-decoration:none;">&#128260; Neu scannen</a>
+        <label for="ssid-select" style="margin:0;">%WEB_AVAILABLE_NETWORKS%</label>
+        <a href="#" onclick="doScan();return false;" style="color:#e94560;font-size:0.8rem;text-decoration:none;">%WEB_RESCAN%</a>
       </div>
       <select id="ssid-select" onchange="if(this.value){document.getElementById('ssid').value=this.value;}">
-        <option value="">Scanne Netzwerke...</option>
+        <option value="">%WEB_SCANNING_NETWORKS%</option>
       </select>
-      <label for="ssid">WiFi Name (SSID)</label>
-      <input type="text" id="ssid" name="ssid" required autocomplete="off" placeholder="Netzwerkname">
-      <label for="pass">Passwort</label>
-      <input type="password" id="pass" name="pass" autocomplete="off" placeholder="WLAN-Passwort">
-      <button type="submit">Speichern &amp; Verbinden</button>
+      <label for="ssid">%WEB_WIFI_NAME%</label>
+      <input type="text" id="ssid" name="ssid" required autocomplete="off" placeholder="%WEB_NETWORK_NAME%">
+      <label for="pass">%WEB_PASSWORD%</label>
+      <input type="password" id="pass" name="pass" autocomplete="off" placeholder="%WEB_WIFI_PASSWORD%">
+      <button type="submit">%WEB_SAVE_AND_CONNECT%</button>
     </form>
-    <div class="divider">oder</div>
-    <p class="wps-info">WPS am Router dr&uuml;cken und hier starten.</p>
-    <a class="btn btn-wps" href="/wps">&#128268; WPS Verbindung starten</a>
+    <div class="divider">%WEB_OR%</div>
+    <p class="wps-info">%WEB_WPS_HINT%</p>
+    <a class="btn btn-wps" href="/wps">%WEB_WPS_START%</a>
 
     <div class="id">%DEVICE_NAME%</div>
   </div>
   <script>
+    const TEXT = {
+      scanningNetworks: '%WEB_SCANNING_NETWORKS%',
+      noNetworks: '%WEB_NO_NETWORKS%',
+      selectNetworkPrefix: '%WEB_SELECT_NETWORK_PREFIX%',
+      selectNetworkSuffix: '%WEB_SELECT_NETWORK_SUFFIX%',
+      manualEntry: '%WEB_MANUAL_ENTRY%',
+      signalUnit: '%WEB_SIGNAL_UNIT%'
+    };
+
     function doScan() {
       const sel = document.getElementById('ssid-select');
-      sel.innerHTML = '<option value="">Scanne Netzwerke...</option>';
+      sel.innerHTML = '<option value="">' + TEXT.scanningNetworks + '</option>';
       fetch('/scan-wifi')
         .then(r => r.json())
         .then(nets => {
           if (!nets || nets.length === 0) {
-            sel.innerHTML = '<option value="">(Keine Netzwerke gefunden - bitte manuell eingeben)</option>';
+            sel.innerHTML = '<option value="">' + TEXT.noNetworks + '</option>';
             return;
           }
-          sel.innerHTML = '<option value="">-- Netzwerk ausw&auml;hlen (' + nets.length + ' gefunden) --</option>';
+          sel.innerHTML = '<option value="">' + TEXT.selectNetworkPrefix + nets.length + TEXT.selectNetworkSuffix + '</option>';
           nets.forEach(n => {
             if (n.ssid) {
               const opt = document.createElement('option');
               opt.value = n.ssid;
-              opt.textContent = n.ssid + ' (' + n.rssi + ' dBm)';
+              opt.textContent = n.ssid + ' (' + n.rssi + ' ' + TEXT.signalUnit + ')';
               sel.appendChild(opt);
             }
           });
         })
         .catch(() => {
-          sel.innerHTML = '<option value="">(Manuelle Eingabe)</option>';
+          sel.innerHTML = '<option value="">' + TEXT.manualEntry + '</option>';
         });
     }
     doScan();
@@ -128,7 +137,7 @@ const char WPS_PAGE[] PROGMEM = R"rawliteral(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>EasySteel - WPS</title>
+  <title>%WEB_WPS_PAGE_TITLE%</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -154,9 +163,9 @@ const char WPS_PAGE[] PROGMEM = R"rawliteral(
 </head>
 <body>
   <div class="card">
-    <h1>&#128268; WPS Active</h1>
+    <h1>%WEB_WPS_ACTIVE%</h1>
     <div class="spinner"></div>
-    <p>Waiting for router...<br>This page will disconnect.<br>The device restarts automatically.</p>
+    <p>%WEB_WPS_WAITING%</p>
   </div>
 </body>
 </html>
@@ -169,7 +178,7 @@ const char SUCCESS_PAGE[] PROGMEM = R"rawliteral(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>EasySteel - Saved</title>
+  <title>%WEB_SUCCESS_PAGE_TITLE%</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -189,7 +198,7 @@ const char SUCCESS_PAGE[] PROGMEM = R"rawliteral(
 </head>
 <body>
   <div class="card">
-    <h1>&#10003; Saved!</h1>
+    <h1>%WEB_SUCCESS_HEADING%</h1>
     <p>%MESSAGE%</p>
   </div>
 </body>
@@ -203,7 +212,7 @@ const char SETTINGS_PAGE[] PROGMEM = R"rawliteral(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>EasySteel Settings</title>
+  <title>%WEB_SETTINGS_TITLE%</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -263,54 +272,66 @@ const char SETTINGS_PAGE[] PROGMEM = R"rawliteral(
 </head>
 <body>
   <div class="card">
-    <h1>&#9881; EasySteel Settings</h1>
-    <p class="sub">Configure your device.</p>
+    <h1>%WEB_SETTINGS_HEADING%</h1>
+    <p class="sub">%WEB_SETTINGS_SUBTITLE%</p>
     <form method="POST" action="/save-settings">
-      <label for="name">Device Name</label>
+      <label for="name">%WEB_DEVICE_NAME%</label>
       <input type="text" id="name" name="name" value="%DEVICE_NAME%" autocomplete="off">
-      <label for="serverIp">Server IP</label>
-      <input type="text" id="serverIp" name="serverIp" value="%SERVER_IP%" placeholder="e.g. 192.168.1.100" autocomplete="off">
-      <label for="port">TCP Port</label>
+      <label for="serverIp">%WEB_SERVER_IP%</label>
+      <input type="text" id="serverIp" name="serverIp" value="%SERVER_IP%" placeholder="%WEB_SERVER_IP_PLACEHOLDER%" autocomplete="off">
+      <label for="port">%WEB_TCP_PORT%</label>
       <input type="text" id="port" name="port" value="%TCP_PORT%" autocomplete="off">
-      <button type="submit">Save Settings</button>
+      <button type="submit">%WEB_SAVE_SETTINGS%</button>
     </form>
     <div class="info">
-      <b>SSID:</b> %WIFI_SSID%<br>
-      <b>IP:</b> %DEVICE_IP%<br>
-      <b>Server IP:</b> %SERVER_IP%<br>
-      <b>Port:</b> %TCP_PORT%<br>
-      <b>Device Name:</b> %DEVICE_NAME%
+      <b>%WEB_SSID%:</b> %WIFI_SSID%<br>
+      <b>%WEB_IP%:</b> %DEVICE_IP%<br>
+      <b>%WEB_SERVER_IP%:</b> %SERVER_IP%<br>
+      <b>%WEB_PORT%:</b> %TCP_PORT%<br>
+      <b>%WEB_DEVICE_NAME%:</b> %DEVICE_NAME%
     </div>
 
-    <div class="divider">Firmware Update</div>
+    <div class="divider">%WEB_FIRMWARE_UPDATE%</div>
     <form id="upload-form" method="POST" action="/update" enctype="multipart/form-data">
-      <label for="fw-file">firmware.bin flashen</label>
+      <label for="fw-file">%WEB_FLASH_FIRMWARE%</label>
       <input type="file" id="fw-file" name="update" accept=".bin" onchange="uploadFirmware(this.files[0])">
       <div id="progress-wrap" style="display:none;margin-top:8px;">
         <div style="background:#0f3460;border-radius:6px;height:14px;overflow:hidden;border:1px solid #333;">
           <div id="progress-bar" style="background:#4ecca3;height:100%;width:0%;transition:width 0.2s;"></div>
         </div>
-        <p id="progress-txt" style="font-size:0.8rem;color:#aaa;text-align:center;margin-top:4px;">0%</p>
+        <p id="progress-txt" style="font-size:0.8rem;color:#aaa;text-align:center;margin-top:4px;">0%WEB_PERCENT_UNIT%</p>
       </div>
     </form>
 
     <div class="danger">
-      <form method="POST" action="/reset-wifi" onsubmit="return confirm('Reset WiFi? Device will restart in setup mode.')">
-        <button type="submit" style="background:none;border:none;color:#e94560;font-size:0.8rem;cursor:pointer;padding:0">Reset WiFi Settings</button>
+      <form method="POST" action="/reset-wifi" onsubmit="return confirm(TEXT.resetWifiConfirm)">
+        <button type="submit" style="background:none;border:none;color:#e94560;font-size:0.8rem;cursor:pointer;padding:0">%WEB_RESET_WIFI%</button>
       </form>
     </div>
   </div>
   <script>
+    const TEXT = {
+      resetWifiConfirm: '%WEB_RESET_WIFI_CONFIRM%',
+      installFirmwarePrefix: '%WEB_INSTALL_FIRMWARE_PREFIX%',
+      installFirmwareSuffix: '%WEB_INSTALL_FIRMWARE_SUFFIX%',
+      uploadRunning: '%WEB_UPLOAD_RUNNING%',
+      flashingPrefix: '%WEB_FLASHING_PREFIX%',
+      updateSuccess: '%WEB_UPDATE_SUCCESS%',
+      errorPrefix: '%WEB_ERROR_PREFIX%',
+      connectionInterrupted: '%WEB_CONNECTION_INTERRUPTED%',
+      percentUnit: '%WEB_PERCENT_UNIT%'
+    };
+
     function uploadFirmware(file) {
       if (!file) return;
-      if (!confirm('Firmware "' + file.name + '" jetzt installieren?')) return;
+      if (!confirm(TEXT.installFirmwarePrefix + file.name + TEXT.installFirmwareSuffix)) return;
       const fd = new FormData();
       fd.append('update', file);
       const pWrap = document.getElementById('progress-wrap');
       const pBar = document.getElementById('progress-bar');
       const pTxt = document.getElementById('progress-txt');
       pWrap.style.display = 'block';
-      pTxt.innerText = 'Upload laeuft...';
+      pTxt.innerText = TEXT.uploadRunning;
 
       const xhr = new XMLHttpRequest();
       xhr.open('POST', '/update', true);
@@ -318,23 +339,23 @@ const char SETTINGS_PAGE[] PROGMEM = R"rawliteral(
         if (e.lengthComputable) {
           const pct = Math.round((e.loaded / e.total) * 100);
           pBar.style.width = pct + '%';
-          pTxt.innerText = 'Flashe: ' + pct + '%';
+          pTxt.innerText = TEXT.flashingPrefix + pct + TEXT.percentUnit;
         }
       };
       xhr.onload = function() {
         if (xhr.status === 200 && xhr.responseText.trim() === 'OK') {
           pBar.style.width = '100%';
           pBar.style.background = '#4ecca3';
-          pTxt.innerText = 'Erfolgreich! ESP32 startet neu...';
+          pTxt.innerText = TEXT.updateSuccess;
           setTimeout(function() { window.location.reload(); }, 5000);
         } else {
           pBar.style.background = '#e94560';
-          pTxt.innerText = 'Fehler: ' + xhr.responseText;
+          pTxt.innerText = TEXT.errorPrefix + xhr.responseText;
         }
       };
       xhr.onerror = function() {
         pBar.style.background = '#e94560';
-        pTxt.innerText = 'Verbindung unterbrochen';
+        pTxt.innerText = TEXT.connectionInterrupted;
       };
       xhr.send(fd);
     }

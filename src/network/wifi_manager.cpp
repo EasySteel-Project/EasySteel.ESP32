@@ -76,7 +76,7 @@ void wifiManagerStartAP(const String& chipId, const String& apPassword)
   Serial.println(WiFi.softAPIP());
 
   char line2[32];
-  snprintf(line2, sizeof(line2), "PW: %s", apPassword.c_str());
+  snprintf(line2, sizeof(line2), STR_WIFI_PASSWORD_FORMAT, apPassword.c_str());
   displayUpdate(WiFi.softAPIP().toString().c_str(), line2);
 }
 
@@ -84,7 +84,7 @@ bool wifiManagerTryConnect(const String &ssid, const String &pass, const String 
 {
   Serial.print("[WIFI] Connecting to: ");
   Serial.println(ssid);
-  displayUpdate(STR_CONNECTING, abortBtn ? "Stop: Offline" : ssid.c_str());
+  displayUpdate(STR_CONNECTING, abortBtn ? STR_WIFI_STOP_OFFLINE : ssid.c_str());
 
   WiFi.mode(WIFI_STA);
   if (hostname.length() > 0)
@@ -236,16 +236,16 @@ void wifiManagerTick(
       char apName[32];
       snprintf(apName, sizeof(apName), "%s%s", AP_SSID_PREFIX, chipId.c_str() + suffixOffset);
       char line1[32];
-      snprintf(line1, sizeof(line1), "WLAN: %s", apName);
+      snprintf(line1, sizeof(line1), STR_WIFI_AP_NAME_FORMAT, apName);
 
       char line2[32];
       if (showIp)
       {
-        snprintf(line2, sizeof(line2), "IP: %s", WiFi.softAPIP().toString().c_str());
+        snprintf(line2, sizeof(line2), STR_WIFI_IP_FORMAT, WiFi.softAPIP().toString().c_str());
       }
       else
       {
-        snprintf(line2, sizeof(line2), "PW: %s", apPassword.c_str());
+        snprintf(line2, sizeof(line2), STR_WIFI_PASSWORD_FORMAT, apPassword.c_str());
       }
       displayUpdate(line1, line2);
     }

@@ -174,7 +174,7 @@ static void menuUpdateDisplay()
   case MENU_STATE_TARGET_COUNT_EDIT:
   {
     char valStr[16];
-    snprintf(valStr, sizeof(valStr), "[ %d ]", configuredTargetCount);
+    snprintf(valStr, sizeof(valStr), STR_VALUE_INT_FORMAT, configuredTargetCount);
     displayUpdateValueEdit(STR_TITLE_TARGET_COUNT, STR_PARAM_TARGET_COUNT, valStr, nullptr, STR_FOOTER_EDIT);
     break;
   }
@@ -192,11 +192,11 @@ static void menuUpdateDisplay()
     char valStr[16];
     if (configuredScreensaverTimeout == 0)
     {
-      snprintf(valStr, sizeof(valStr), "[ %s ]", STR_TIMEOUT_OFF);
+      snprintf(valStr, sizeof(valStr), STR_VALUE_TEXT_FORMAT, STR_TIMEOUT_OFF);
     }
     else
     {
-      snprintf(valStr, sizeof(valStr), "[ %d Min ]", configuredScreensaverTimeout);
+      snprintf(valStr, sizeof(valStr), STR_VALUE_MINUTES_FORMAT, configuredScreensaverTimeout);
     }
     displayUpdateValueEdit(STR_TITLE_SCREENSAVER, STR_PARAM_SCREENSAVER, valStr, STR_HINT_SCREENSAVER, STR_FOOTER_NAV);
     break;
@@ -208,52 +208,52 @@ static void menuUpdateDisplay()
     char lineStatus[24];
     if (networkIsProvisioning())
     {
-      snprintf(lineStatus, sizeof(lineStatus), "Status: %s", STR_STATUS_AP);
+      snprintf(lineStatus, sizeof(lineStatus), STR_NETWORK_STATUS_FORMAT, STR_STATUS_AP);
     }
     else if (networkIsWiFiConnected())
     {
-      snprintf(lineStatus, sizeof(lineStatus), "Status: %s", STR_STATUS_CONNECTED);
+      snprintf(lineStatus, sizeof(lineStatus), STR_NETWORK_STATUS_FORMAT, STR_STATUS_CONNECTED);
     }
     else
     {
-      snprintf(lineStatus, sizeof(lineStatus), "Status: %s", STR_STATUS_DISCONNECTED);
+      snprintf(lineStatus, sizeof(lineStatus), STR_NETWORK_STATUS_FORMAT, STR_STATUS_DISCONNECTED);
     }
 
     char lineSsid[24];
     String ssid = networkGetSSID();
-    snprintf(lineSsid, sizeof(lineSsid), "SSID: %.14s", ssid.c_str());
+    snprintf(lineSsid, sizeof(lineSsid), STR_NETWORK_SSID_FORMAT, ssid.c_str());
 
     char lineIp[24];
     String ip = networkGetLocalIP();
-    snprintf(lineIp, sizeof(lineIp), "IP: %.16s", ip.c_str());
+    snprintf(lineIp, sizeof(lineIp), STR_NETWORK_IP_FORMAT, ip.c_str());
 
     char lineServer[24];
     String serverIp = networkGetServerIP();
-    snprintf(lineServer, sizeof(lineServer), "Server: %.12s", serverIp.c_str());
+    snprintf(lineServer, sizeof(lineServer), STR_NETWORK_SERVER_FORMAT, serverIp.c_str());
 
     char linePort[24];
     uint16_t port = networkGetTCPPort();
-    snprintf(linePort, sizeof(linePort), "Port: %u", port);
+    snprintf(linePort, sizeof(linePort), STR_NETWORK_PORT_FORMAT, port);
 
     char lineName[24];
     String name = networkGetDeviceName();
-    snprintf(lineName, sizeof(lineName), "Name: %.14s", name.c_str());
+    snprintf(lineName, sizeof(lineName), STR_NETWORK_NAME_FORMAT, name.c_str());
 
     char lineId[24];
     String id = networkGetDeviceID();
-    snprintf(lineId, sizeof(lineId), "ID: %.16s", id.c_str());
+    snprintf(lineId, sizeof(lineId), STR_NETWORK_ID_FORMAT, id.c_str());
 
     char lineConnect[24];
-    snprintf(lineConnect, sizeof(lineConnect), "> %s", STR_ACTION_WIFI_CONNECT);
+    snprintf(lineConnect, sizeof(lineConnect), STR_MENU_ACTION_FORMAT, STR_ACTION_WIFI_CONNECT);
 
     char lineAp[24];
-    snprintf(lineAp, sizeof(lineAp), "> %s", STR_ACTION_AP_MODE);
+    snprintf(lineAp, sizeof(lineAp), STR_MENU_ACTION_FORMAT, STR_ACTION_AP_MODE);
 
     char lineWps[24];
-    snprintf(lineWps, sizeof(lineWps), "> %s", STR_ACTION_WPS);
+    snprintf(lineWps, sizeof(lineWps), STR_MENU_ACTION_FORMAT, STR_ACTION_WPS);
 
     char lineReset[24];
-    snprintf(lineReset, sizeof(lineReset), "> %s", STR_ACTION_WIFI_RESET);
+    snprintf(lineReset, sizeof(lineReset), STR_MENU_ACTION_FORMAT, STR_ACTION_WIFI_RESET);
 
     const char *netItems[NET_ITEM_COUNT] = {
       lineStatus,
@@ -280,7 +280,7 @@ static void menuUpdateDisplay()
   case MENU_STATE_REMOTE_PAIRING:
   {
     char pinValue[16];
-    snprintf(pinValue, sizeof(pinValue), "[ %s ]", remoteControlGetPairingPin());
+    snprintf(pinValue, sizeof(pinValue), STR_VALUE_TEXT_FORMAT, remoteControlGetPairingPin());
     displayUpdateValueEdit(
       STR_REMOTE_PAIRING_TITLE,
       STR_REMOTE_PAIRING_PIN,
