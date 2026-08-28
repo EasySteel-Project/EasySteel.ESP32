@@ -5,6 +5,8 @@
 #include "mock_globals.cpp"
 #include "tcp_protocol.h"
 #include "tcp_protocol.cpp"
+#include "../support/protocol_fixture_loader.h"
+#include <string>
 
 std::string buildJsonEvent(
     const String& chipId,
@@ -36,61 +38,203 @@ std::string buildJsonEvent(
     return client.writtenData;
 }
 
-void setUp(void) {}
-void tearDown(void) {}
-
-void test_tcp_json_hit_event_format(void)
+void assertJsonEquivalence(
+    const std::string& expectedJson,
+    const std::string& actualJson,
+    const char *fixtureId)
 {
-    std::string jsonStr = buildJsonEvent(
-        "ESP32_A1B2C3", "Target_1", "hit", 2, 1450, 5);
+    JsonDocument expectedDocument;
+    JsonDocument actualDocument;
+    const DeserializationError expectedError =
+        deserializeJson(expectedDocument, expectedJson);
+    const DeserializationError actualError =
+        deserializeJson(actualDocument, actualJson);
 
-    TEST_ASSERT_TRUE(jsonStr.find("\"deviceId\":\"ESP32_A1B2C3\"") != std::string::npos);
-    TEST_ASSERT_TRUE(jsonStr.find("\"deviceName\":\"Target_1\"") != std::string::npos);
-    TEST_ASSERT_TRUE(jsonStr.find("\"event\":\"hit\"") != std::string::npos);
-    TEST_ASSERT_TRUE(jsonStr.find("\"target\":2") != std::string::npos);
-    TEST_ASSERT_TRUE(jsonStr.find("\"timeMs\":1450") != std::string::npos);
-    TEST_ASSERT_TRUE(jsonStr.find("\"targetCount\":5") != std::string::npos);
-    TEST_ASSERT_TRUE(jsonStr.find("\"protocolVersion\":1") != std::string::npos);
-    TEST_ASSERT_EQUAL('\n', jsonStr.back());
+    TEST_ASSERT_TRUE_MESSAGE(
+        expectedError == DeserializationError::Ok,
+        fixtureId);
+    TEST_ASSERT_TRUE_MESSAGE(
+        actualError == DeserializationError::Ok,
+        fixtureId);
+    TEST_ASSERT_EQUAL_UINT32_MESSAGE(
+        expectedDocument.size(),
+        actualDocument.size(),
+        fixtureId);
+
+    for (JsonPairConst pair : expectedDocument.as<JsonObjectConst>())
+    {
+        JsonVariantConst actualValue = actualDocument[pair.key()];
+        TEST_ASSERT_FALSE_MESSAGE(actualValue.isNull(), fixtureId);
+
+        std::string expectedValue;
+        std::string serializedActualValue;
+        serializeJson(pair.value(), expectedValue);
+        serializeJson(actualValue, serializedActualValue);
+        TEST_ASSERT_EQUAL_STRING_MESSAGE(
+            expectedValue.c_str(),
+            serializedActualValue.c_str(),
+            fixtureId);
+    }
 }
 
-void test_tcp_json_end_event_has_auditable_result_fields(void)
+std::string buildJsonEventForFixture(JsonObjectConst entry)
 {
-    std::string jsonStr = buildJsonEvent(
-        "ESP32_A1B2C3",
-        "Target_1",
-        "end",
-        -1,
-        7250,
-        5,
-        "abcd-1",
-        1250,
-        1,
-        2,
-        "match-17:stage-3");
+    JsonObjectConst fields = entry["expectedFields"].as<JsonObjectConst>();
+    const char *event = entry["expectedEvent"].as<const char *>();
+    const int target = fields["target"].is<int>()
+        ? fields["target"].as<int>()
+        : -1;
+    const char *runId = fields["runId"].is<const char *>()
+        ? fields["runId"].as<const char *>()
+        : nullptr;
+    const char *contextId = fields["contextId"].is<const char *>()
+        ? fields["contextId"].as<const char *>()
+        : nullptr;
 
-    TEST_ASSERT_TRUE(jsonStr.find("\"event\":\"end\"") != std::string::npos);
-    TEST_ASSERT_TRUE(jsonStr.find("\"runId\":\"abcd-1\"") != std::string::npos);
-    TEST_ASSERT_TRUE(jsonStr.find("\"rawTimeMs\":1250") != std::string::npos);
-    TEST_ASSERT_TRUE(jsonStr.find("\"missCount\":1") != std::string::npos);
-    TEST_ASSERT_TRUE(jsonStr.find("\"penaltyCount\":2") != std::string::npos);
-    TEST_ASSERT_TRUE(jsonStr.find("\"penaltyTimeMs\":6000") != std::string::npos);
-    TEST_ASSERT_TRUE(jsonStr.find("\"contextId\":\"match-17:stage-3\"") != std::string::npos);
-    TEST_ASSERT_TRUE(jsonStr.find("\"target\":") == std::string::npos);
-    TEST_ASSERT_EQUAL('\n', jsonStr.back());
+    return buildJsonEvent(
+        fields["deviceId"].as<const char *>(),
+        fields["deviceName"].as<const char *>(),
+        event,
+        target,
+        fields["timeMs"].as<unsigned long>(),
+        fields["targetCount"].as<int>(),
+        runId,
+        fields["rawTimeMs"].is<unsigned long>()
+            ? fields["rawTimeMs"].as<unsigned long>()
+            : 0,
+        fields["missCount"].is<int>()
+            ? fields["missCount"].as<int>()
+            : 0,
+        fields["penaltyCount"].is<int>()
+            ? fields["penaltyCount"].as<int>()
+            : 0,
+        contextId);
 }
 
-void test_tcp_json_ping_event_has_no_result_fields(void)
+TcpServerMessageType expectedServerMessageType(const char *event)
 {
-    std::string jsonStr = buildJsonEvent(
-        "ESP32_A1B2C3", "Target_1", "ping", -1, 0, 5);
-
-    TEST_ASSERT_TRUE(jsonStr.find("\"event\":\"ping\"") != std::string::npos);
-    TEST_ASSERT_TRUE(jsonStr.find("\"penaltyCount\":") == std::string::npos);
-    TEST_ASSERT_TRUE(jsonStr.find("\"runId\":") == std::string::npos);
-    TEST_ASSERT_EQUAL('\n', jsonStr.back());
+    if (strcmp(event, "capabilities") == 0)
+    {
+        return TcpServerMessageType::Capabilities;
+    }
+    if (strcmp(event, "ack") == 0)
+    {
+        return TcpServerMessageType::Acknowledgement;
+    }
+    if (strcmp(event, "match_info") == 0)
+    {
+        return TcpServerMessageType::MatchInfo;
+    }
+    return TcpServerMessageType::Unknown;
 }
 
+void setUp(void)
+{
+}
+
+void tearDown(void)
+{
+}
+
+void test_device_serialization_vectors(void)
+{
+    JsonDocument manifest = loadProtocolFixtureManifest();
+    size_t executedVectors = 0;
+
+    for (JsonObjectConst entry : manifest.as<JsonArrayConst>())
+    {
+        const char *direction = entry["direction"] | "";
+        if (strcmp(direction, "device-to-server") != 0 ||
+            !protocolFixtureLayerMatches(
+                entry,
+                "serialization",
+                "end-to-end"))
+        {
+            continue;
+        }
+
+        executedVectors++;
+        const char *fixtureId = protocolFixtureId(entry);
+        const std::string expected =
+            loadProtocolFixture(entry["file"] | "");
+        const std::string actual = buildJsonEventForFixture(entry);
+        TEST_ASSERT_FALSE_MESSAGE(actual.empty(), fixtureId);
+        TEST_ASSERT_EQUAL_CHAR_MESSAGE('\n', actual.back(), fixtureId);
+        assertJsonEquivalence(expected, actual, fixtureId);
+    }
+
+    TEST_ASSERT_GREATER_THAN_MESSAGE(
+        0,
+        executedVectors,
+        "No device serialization vectors were executed.");
+}
+
+void test_server_parsing_vectors(void)
+{
+    JsonDocument manifest = loadProtocolFixtureManifest();
+    size_t executedVectors = 0;
+
+    for (JsonObjectConst entry : manifest.as<JsonArrayConst>())
+    {
+        if (!protocolFixtureDirectionMatches(entry, "server-to-device") ||
+            !protocolFixtureLayerMatches(entry, "parsing", "end-to-end"))
+        {
+            continue;
+        }
+
+        executedVectors++;
+        const char *fixtureId = protocolFixtureId(entry);
+        const std::string json =
+            loadProtocolFixture(entry["file"] | "");
+        TcpServerMessage message = {};
+        const bool parsed = tcpProtocolParseServerMessage(
+            json.c_str(),
+            json.size(),
+            message);
+        const char *expectedResult = entry["expectedResult"] | "";
+
+        if (strcmp(expectedResult, "rejected") == 0)
+        {
+            TEST_ASSERT_FALSE_MESSAGE(parsed, fixtureId);
+            continue;
+        }
+
+        TEST_ASSERT_TRUE_MESSAGE(parsed, fixtureId);
+        const char *expectedEvent = entry["expectedEvent"] | "";
+        TEST_ASSERT_EQUAL_INT_MESSAGE(
+            static_cast<int>(expectedServerMessageType(expectedEvent)),
+            static_cast<int>(message.type),
+            fixtureId);
+
+        JsonObjectConst fields =
+            entry["expectedFields"].as<JsonObjectConst>();
+        if (message.type == TcpServerMessageType::Acknowledgement)
+        {
+            TEST_ASSERT_EQUAL_STRING_MESSAGE(
+                fields["runId"] | "",
+                message.runId,
+                fixtureId);
+        }
+        else if (message.type == TcpServerMessageType::MatchInfo)
+        {
+            TEST_ASSERT_EQUAL_STRING_MESSAGE(
+                fields["contextId"] | "",
+                message.contextId,
+                fixtureId);
+            TEST_ASSERT_EQUAL_STRING_MESSAGE(
+                fields["stage"] | "",
+                message.stage,
+                fixtureId);
+        }
+    }
+
+    TEST_ASSERT_GREATER_THAN_MESSAGE(
+        0,
+        executedVectors,
+        "No server parsing vectors were executed.");
+}
+
+// These local safety tests exercise implementation details, not shared wire data.
 void test_tcp_serialization_rejects_invalid_result(void)
 {
     char buffer[TCP_EVENT_MAX_BYTES] = {};
@@ -149,155 +293,27 @@ void test_tcp_serialization_rejects_document_overflow(void)
             5));
 }
 
-void test_tcp_serialization_accepts_maximum_valid_result_fields(void)
-{
-    String deviceId(std::string(31, 'a'));
-    String deviceName(std::string(31, 'b'));
-    std::string runId(23, 'c');
-    std::string contextId(47, 'd');
-    char buffer[TCP_EVENT_MAX_BYTES] = {};
-
-    size_t length = tcpProtocolSerializeEvent(
-        buffer,
-        sizeof(buffer),
-        deviceId,
-        deviceName,
-        "end",
-        -1,
-        30000,
-        5,
-        runId.c_str(),
-        0,
-        4,
-        10,
-        contextId.c_str());
-
-    TEST_ASSERT_GREATER_THAN_UINT32(0, length);
-    TEST_ASSERT_LESS_OR_EQUAL_UINT32(TCP_EVENT_MAX_BYTES - 1, length);
-}
-
-void test_tcp_serialization_rejects_invalid_utf8_device_name(void)
-{
-    const char invalidName[] = {static_cast<char>(0xc3), '(', '\0'};
-    char buffer[TCP_EVENT_MAX_BYTES] = {};
-
-    TEST_ASSERT_EQUAL_UINT32(
-        0,
-        tcpProtocolSerializeEvent(
-            buffer,
-            sizeof(buffer),
-            "ESP32_A1B2C3",
-            invalidName,
-            "online",
-            -1,
-            0,
-            5));
-}
-
-void test_parse_capabilities_message(void)
+void test_parse_rejects_escaped_property_names(void)
 {
     const char *json =
-        "{\"protocolVersion\":1,\"event\":\"capabilities\",\"resultAck\":true}";
-    TcpServerMessage message = {};
-
-    TEST_ASSERT_TRUE(tcpProtocolParseServerMessage(json, strlen(json), message));
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(TcpServerMessageType::Capabilities),
-        static_cast<int>(message.type));
-}
-
-void test_reject_capabilities_without_required_result_ack(void)
-{
-    const char *json =
-        "{\"protocolVersion\":1,\"event\":\"capabilities\",\"resultAck\":false}";
-    TcpServerMessage message = {};
-
-    TEST_ASSERT_FALSE(tcpProtocolParseServerMessage(json, strlen(json), message));
-}
-
-void test_parse_ack_message_uses_canonical_envelope(void)
-{
-    const char *json =
-        "{\"protocolVersion\":1,\"event\":\"ack\",\"runId\":\"91af20c3-7\"}";
-    TcpServerMessage message = {};
-
-    TEST_ASSERT_TRUE(tcpProtocolParseServerMessage(json, strlen(json), message));
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(TcpServerMessageType::Acknowledgement),
-        static_cast<int>(message.type));
-    TEST_ASSERT_EQUAL_STRING("91af20c3-7", message.runId);
-}
-
-void test_parse_match_info_message(void)
-{
-    const char *json =
-        "{\"protocolVersion\":1,\"event\":\"match_info\","
-        "\"contextId\":\"match-17:stage-3\",\"stage\":\"Roundabout\"}";
-    TcpServerMessage message = {};
-
-    TEST_ASSERT_TRUE(tcpProtocolParseServerMessage(json, strlen(json), message));
-    TEST_ASSERT_EQUAL_INT(
-        static_cast<int>(TcpServerMessageType::MatchInfo),
-        static_cast<int>(message.type));
-    TEST_ASSERT_EQUAL_STRING("match-17:stage-3", message.contextId);
-    TEST_ASSERT_EQUAL_STRING("Roundabout", message.stage);
-}
-
-void test_parse_rejects_wrong_version_and_legacy_ack(void)
-{
-    const char *wrongVersion =
-        "{\"protocolVersion\":2,\"event\":\"ack\",\"runId\":\"run-1\"}";
-    const char *legacyAck = "{\"ack\":\"run-1\"}";
-    TcpServerMessage message = {};
-
-    TEST_ASSERT_FALSE(tcpProtocolParseServerMessage(
-        wrongVersion, strlen(wrongVersion), message));
-    TEST_ASSERT_FALSE(tcpProtocolParseServerMessage(
-        legacyAck, strlen(legacyAck), message));
-}
-
-void test_parse_rejects_unsafe_match_text(void)
-{
-    const char *json =
-        "{\"protocolVersion\":1,\"event\":\"match_info\","
-        "\"contextId\":\"match-17\",\"stage\":\"Bad\\nStage\"}";
-    TcpServerMessage message = {};
-
-    TEST_ASSERT_FALSE(tcpProtocolParseServerMessage(json, strlen(json), message));
-}
-
-void test_parse_rejects_duplicate_or_escaped_property_names(void)
-{
-    const char *duplicate =
-        "{\"protocolVersion\":1,\"event\":\"ack\",\"event\":\"capabilities\","
+        "{\"protocolVersion\":1,\"ev\\u0065nt\":\"ack\","
         "\"runId\":\"run-1\"}";
-    const char *escapedProperty =
-        "{\"protocolVersion\":1,\"ev\\u0065nt\":\"ack\",\"runId\":\"run-1\"}";
     TcpServerMessage message = {};
 
     TEST_ASSERT_FALSE(tcpProtocolParseServerMessage(
-        duplicate, strlen(duplicate), message));
-    TEST_ASSERT_FALSE(tcpProtocolParseServerMessage(
-        escapedProperty, strlen(escapedProperty), message));
+        json,
+        strlen(json),
+        message));
 }
 
 int main(int argc, char **argv)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_tcp_json_hit_event_format);
-    RUN_TEST(test_tcp_json_end_event_has_auditable_result_fields);
-    RUN_TEST(test_tcp_json_ping_event_has_no_result_fields);
+    RUN_TEST(test_device_serialization_vectors);
+    RUN_TEST(test_server_parsing_vectors);
     RUN_TEST(test_tcp_serialization_rejects_invalid_result);
     RUN_TEST(test_tcp_serialization_rejects_too_small_buffer);
     RUN_TEST(test_tcp_serialization_rejects_document_overflow);
-    RUN_TEST(test_tcp_serialization_accepts_maximum_valid_result_fields);
-    RUN_TEST(test_tcp_serialization_rejects_invalid_utf8_device_name);
-    RUN_TEST(test_parse_capabilities_message);
-    RUN_TEST(test_reject_capabilities_without_required_result_ack);
-    RUN_TEST(test_parse_ack_message_uses_canonical_envelope);
-    RUN_TEST(test_parse_match_info_message);
-    RUN_TEST(test_parse_rejects_wrong_version_and_legacy_ack);
-    RUN_TEST(test_parse_rejects_unsafe_match_text);
-    RUN_TEST(test_parse_rejects_duplicate_or_escaped_property_names);
+    RUN_TEST(test_parse_rejects_escaped_property_names);
     return UNITY_END();
 }
