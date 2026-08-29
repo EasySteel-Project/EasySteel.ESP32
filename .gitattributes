@@ -8,4 +8,8 @@
 *.py text eol=lf
 *.yml text eol=lf
 
+test/fixtures/protocol_v1/manifest.json text eol=lf
+test/fixtures/protocol_v1/vectors/*.json text eol=lf
+test/fixtures/protocol_v1/vectors/*.bin binary
+
 *.png binary

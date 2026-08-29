@@ -1,0 +1,238 @@
+[
+  {
+    "id": "device-online-valid",
+    "direction": "device-to-server",
+    "layer": "end-to-end",
+    "file": "vectors/device-online.json",
+    "encoding": "utf-8",
+    "expectedResult": "accepted",
+    "expectedEvent": "online",
+    "expectedFields": {
+      "deviceId": "EasySteel_6134",
+      "deviceName": "Lane 1",
+      "timeMs": 0,
+      "targetCount": 5
+    }
+  },
+  {
+    "id": "device-hit-valid",
+    "direction": "device-to-server",
+    "layer": "end-to-end",
+    "file": "vectors/device-hit.json",
+    "encoding": "utf-8",
+    "expectedResult": "accepted",
+    "expectedEvent": "hit",
+    "expectedFields": {
+      "deviceId": "EasySteel_6134",
+      "deviceName": "Lane 1",
+      "target": 2,
+      "timeMs": 1523,
+      "targetCount": 5
+    }
+  },
+  {
+    "id": "device-end-valid",
+    "direction": "device-to-server",
+    "layer": "end-to-end",
+    "file": "vectors/device-end.json",
+    "encoding": "utf-8",
+    "expectedResult": "accepted",
+    "expectedEvent": "end",
+    "expectedFields": {
+      "deviceId": "EasySteel_6134",
+      "deviceName": "Lane 1",
+      "runId": "91af20c3-7",
+      "rawTimeMs": 1250,
+      "missCount": 1,
+      "penaltyCount": 2,
+      "penaltyTimeMs": 6000,
+      "timeMs": 7250,
+      "targetCount": 5,
+      "contextId": "match-17:stage-3"
+    }
+  },
+  {
+    "id": "device-ping-valid",
+    "direction": "device-to-server",
+    "layer": "end-to-end",
+    "file": "vectors/device-ping.json",
+    "encoding": "utf-8",
+    "expectedResult": "accepted",
+    "expectedEvent": "ping",
+    "expectedFields": {
+      "deviceId": "EasySteel_6134",
+      "deviceName": "Lane 1",
+      "timeMs": 0,
+      "targetCount": 5
+    }
+  },
+  {
+    "id": "device-online-unknown-property",
+    "direction": "device-to-server",
+    "layer": "parsing",
+    "file": "vectors/device-online-unknown-property.json",
+    "encoding": "utf-8",
+    "expectedResult": "accepted",
+    "expectedEvent": "online",
+    "expectedFields": {
+      "deviceId": "EasySteel_6134",
+      "deviceName": "Lane 1",
+      "timeMs": 0,
+      "targetCount": 5
+    }
+  },
+  {
+    "id": "device-unknown-event",
+    "direction": "device-to-server",
+    "layer": "parsing",
+    "file": "vectors/device-unknown-event.json",
+    "encoding": "utf-8",
+    "expectedResult": "accepted",
+    "expectedEvent": "future_event",
+    "expectedFields": {
+      "customField": "abc"
+    }
+  },
+  {
+    "id": "device-duplicate-properties",
+    "direction": "device-to-server",
+    "layer": "parsing",
+    "file": "vectors/device-duplicate-properties.json",
+    "encoding": "utf-8",
+    "expectedResult": "rejected"
+  },
+  {
+    "id": "server-capabilities-valid",
+    "direction": "server-to-device",
+    "layer": "end-to-end",
+    "file": "vectors/server-capabilities.json",
+    "encoding": "utf-8",
+    "expectedResult": "accepted",
+    "expectedEvent": "capabilities",
+    "expectedFields": {
+      "resultAck": true
+    }
+  },
+  {
+    "id": "server-ack-valid",
+    "direction": "server-to-device",
+    "layer": "end-to-end",
+    "file": "vectors/server-ack.json",
+    "encoding": "utf-8",
+    "expectedResult": "accepted",
+    "expectedEvent": "ack",
+    "expectedFields": {
+      "runId": "91af20c3-7"
+    }
+  },
+  {
+    "id": "server-matchinfo-valid",
+    "direction": "server-to-device",
+    "layer": "end-to-end",
+    "file": "vectors/server-matchinfo.json",
+    "encoding": "utf-8",
+    "expectedResult": "accepted",
+    "expectedEvent": "match_info",
+    "expectedFields": {
+      "contextId": "match-17:stage-3",
+      "stage": "Roundabout"
+    }
+  },
+  {
+    "id": "server-matchinfo-unsafe",
+    "direction": "server-to-device",
+    "layer": "end-to-end",
+    "file": "vectors/server-matchinfo-unsafe.json",
+    "encoding": "utf-8",
+    "expectedResult": "rejected",
+    "expectedEvent": "match_info",
+    "expectedFields": {
+      "contextId": "match-17:stage-3",
+      "stage": "Bad\nStage"
+    }
+  },
+  {
+    "id": "server-ack-unknown-property",
+    "direction": "server-to-device",
+    "layer": "parsing",
+    "file": "vectors/server-ack-unknown-property.json",
+    "encoding": "utf-8",
+    "expectedResult": "accepted",
+    "expectedEvent": "ack",
+    "expectedFields": {
+      "runId": "91af20c3-7"
+    }
+  },
+  {
+    "id": "server-unknown-event",
+    "direction": "server-to-device",
+    "layer": "parsing",
+    "file": "vectors/server-unknown-event.json",
+    "encoding": "utf-8",
+    "expectedResult": "accepted",
+    "expectedEvent": "future_event"
+  },
+  {
+    "id": "server-duplicate-properties",
+    "direction": "server-to-device",
+    "layer": "parsing",
+    "file": "vectors/server-duplicate-properties.json",
+    "encoding": "utf-8",
+    "expectedResult": "rejected"
+  },
+  {
+    "id": "invalid-utf8",
+    "direction": "bidirectional",
+    "layer": "end-to-end",
+    "file": "vectors/invalid-utf8.bin",
+    "encoding": "binary",
+    "expectedResult": "rejected",
+    "expectedDiscardedCount": 1
+  },
+  {
+    "id": "framing-fragmented",
+    "direction": "bidirectional",
+    "layer": "framing",
+    "file": "vectors/framing-fragmented.bin",
+    "encoding": "binary",
+    "expectedResult": "accepted",
+    "expectedEvent": "ack",
+    "expectedPayload": "{\"event\":\"ack\"}",
+    "expectedCompleteCount": 1,
+    "chunkSize": 8
+  },
+  {
+    "id": "framing-crlf",
+    "direction": "bidirectional",
+    "layer": "framing",
+    "file": "vectors/framing-crlf.bin",
+    "encoding": "binary",
+    "expectedResult": "accepted",
+    "expectedEvent": "none",
+    "expectedPayload": "{}",
+    "expectedCompleteCount": 1
+  },
+  {
+    "id": "framing-exact-boundary",
+    "direction": "bidirectional",
+    "layer": "framing",
+    "file": "vectors/framing-exact-boundary.bin",
+    "encoding": "binary",
+    "expectedResult": "accepted",
+    "expectedEvent": "none",
+    "expectedPayloadBytes": 382,
+    "expectedCompleteCount": 1
+  },
+  {
+    "id": "framing-over-boundary",
+    "direction": "bidirectional",
+    "layer": "framing",
+    "file": "vectors/framing-over-boundary.bin",
+    "encoding": "binary",
+    "expectedResult": "discarded",
+    "expectedEvent": "none",
+    "expectedPayload": "{}",
+    "expectedCompleteCount": 1,
+    "expectedDiscardedCount": 1
+  }
+]
