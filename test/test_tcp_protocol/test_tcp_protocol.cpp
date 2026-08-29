@@ -19,7 +19,8 @@ std::string buildJsonEvent(
     unsigned long rawTimeMs = 0,
     int missCount = 0,
     int penaltyCount = 0,
-    const char *contextId = nullptr)
+    const char *contextId = nullptr,
+    uint32_t sequence = 0)
 {
     WiFiClient client;
     tcpProtocolWriteEvent(
@@ -34,7 +35,8 @@ std::string buildJsonEvent(
         rawTimeMs,
         missCount,
         penaltyCount,
-        contextId);
+        contextId,
+        sequence);
     return client.writtenData;
 }
 
