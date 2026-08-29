@@ -1,7 +1,5 @@
 # EasySteel ESP32 Firmware
 
-> 🌐 Language: **English** | [🇩🇪 Deutsch](de/FIRMWARE.md)
-
 This document describes the design, state machine, and operation of the firmware. For electrical wiring, refer to [HARDWARE.md](HARDWARE.md); for the binding TCP contract, refer to [PROTOCOL.md](PROTOCOL.md).
 
 ## 1. System Boundary

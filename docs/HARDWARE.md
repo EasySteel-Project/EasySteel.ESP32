@@ -1,7 +1,5 @@
 # EasySteel Hardware Specification
 
-> 🌐 Language: **English** | [🇩🇪 Deutsch](de/HARDWARE.md)
-
 This document is the authoritative hardware reference for the base station, target modules, pinouts, and field cabling. Do not construct systems from older, simplified sketches.
 
 > ⚠️ **MANDATORY PRE-COMMISSIONING CHECKS:**

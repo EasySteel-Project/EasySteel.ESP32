@@ -1,7 +1,5 @@
 # Release Process
 
-> 🌐 Language: **English** | [🇩🇪 Deutsch](de/RELEASES.md)
-
 This document defines the release process for the standalone EasySteel firmware. It is intended to make source, firmware binary, and checksums traceable and reproducible.
 
 ## Versioning

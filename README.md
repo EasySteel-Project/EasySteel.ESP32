@@ -21,19 +21,18 @@ The ESP32 is the authoritative system for round state, timing, hits, penalties, 
 ├── include/            Public headers grouped by core, hardware, and network
 ├── src/                Firmware implementations and Arduino entry point
 ├── test/               Native Unity tests and hardware mocks
-├── docs/               Architecture, hardware, firmware, and roadmap
+├── docs/               Architecture, hardware, firmware, and release documentation
 ├── platformio.ini      Pinned build and test environments
 └── extra_script.py     PlatformIO build metadata helper
 ```
 
 Documentation:
 
-- **Firmware behavior & operation:** [🇬🇧 English](docs/FIRMWARE.md) | [🇩🇪 Deutsch](docs/de/FIRMWARE.md)
-- **Hardware specification & wiring:** [🇬🇧 English](docs/HARDWARE.md) | [🇩🇪 Deutsch](docs/de/HARDWARE.md)
-- **TCP protocol v1:** [🇬🇧 English](docs/PROTOCOL.md) | [🇩🇪 Deutsch](docs/de/PROTOCOL.md)
-- **System authority & boundaries:** [🇬🇧 English](docs/ARCHITECTURE.md) | [🇩🇪 Deutsch](docs/de/ARCHITECTURE.md)
-- **Roadmap:** [🇬🇧 English](docs/ROADMAP.md) | [🇩🇪 Deutsch](docs/de/ROADMAP.md)
-- **Release process:** [🇬🇧 English](docs/RELEASES.md) | [🇩🇪 Deutsch](docs/de/RELEASES.md)
+- **Firmware behavior and operation:** [docs/FIRMWARE.md](docs/FIRMWARE.md)
+- **Hardware specification and wiring:** [docs/HARDWARE.md](docs/HARDWARE.md)
+- **TCP Protocol v1:** [docs/PROTOCOL.md](docs/PROTOCOL.md)
+- **System authority and boundaries:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- **Release process:** [docs/RELEASES.md](docs/RELEASES.md)
 - [Licensing](LICENSES.md)
 - [EasySteel name and logo policy](TRADEMARKS.md)
 - [Third-party notices and audit status](THIRD_PARTY_NOTICES.md)

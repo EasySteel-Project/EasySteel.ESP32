@@ -1,7 +1,5 @@
 # EasySteel Firmware Documentation
 
-> 🌐 Language: **English** | [🇩🇪 Deutsch](de/README.md)
-
 Welcome to the technical documentation for the standalone EasySteel ESP32 target and timer firmware.
 
 ## Documentation Index
@@ -10,7 +8,6 @@ Welcome to the technical documentation for the standalone EasySteel ESP32 target
 - [**Hardware Specification & Commissioning**](HARDWARE.md) — Circuit diagrams, ESP32 pinout, level shifter (TXS0108E), LED driver (ULN2803A), RJ45 field cabling, and mandatory electrical safety checks.
 - [**TCP Protocol v1**](PROTOCOL.md) — Integration contract between ESP32 and external desktop applications (JSON events, capability negotiation, and reliable result acknowledgement).
 - [**System Authority & Boundaries**](ARCHITECTURE.md) — Hardware-first design principle and distribution of responsibilities between ESP32 and PC.
-- [**Project Roadmap**](ROADMAP.md) — Priorities, stabilization milestones, and future concepts.
 - [**Release Process**](RELEASES.md) — Semantic versioning, reproducible builds, and release checklists.
 
 ---

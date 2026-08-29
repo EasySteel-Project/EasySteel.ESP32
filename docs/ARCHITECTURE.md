@@ -1,7 +1,5 @@
 # System Authority
 
-> 🌐 Language: **English** | [🇩🇪 Deutsch](de/ARCHITECTURE.md)
-
 EasySteel is hardware-first. The ESP32 timer is the authoritative source for every fact that can affect a round or its result.
 
 ## Responsibilities

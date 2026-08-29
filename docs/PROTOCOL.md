@@ -1,7 +1,5 @@
 # EasySteel TCP Protocol v1
 
-> 🌐 Language: **English** | [🇩🇪 Deutsch](de/PROTOCOL.md)
-
 This document is the binding integration contract between EasySteel ESP32 firmware and RangeControl. Protocol v1 has no compatibility obligation to earlier development snapshots. The ESP32 remains authoritative for the complete round lifecycle and every value that affects a score.
 
 ## 1. Transport and framing
