@@ -306,6 +306,25 @@ void test_parse_rejects_escaped_property_names(void)
         message));
 }
 
+void test_match_info_ignores_deferred_v2_display_fields(void)
+{
+    const char *json =
+        "{\"protocolVersion\":1,\"event\":\"match_info\","
+        "\"contextId\":\"match-17:stage-3\",\"stage\":\"Roundabout\","
+        "\"competitorName\":\"Pilot Shooter\",\"stringNumber\":3}";
+    TcpServerMessage message = {};
+
+    TEST_ASSERT_TRUE(tcpProtocolParseServerMessage(
+        json,
+        strlen(json),
+        message));
+    TEST_ASSERT_EQUAL_INT(
+        static_cast<int>(TcpServerMessageType::MatchInfo),
+        static_cast<int>(message.type));
+    TEST_ASSERT_EQUAL_STRING("match-17:stage-3", message.contextId);
+    TEST_ASSERT_EQUAL_STRING("Roundabout", message.stage);
+}
+
 int main(int argc, char **argv)
 {
     UNITY_BEGIN();
@@ -315,5 +334,6 @@ int main(int argc, char **argv)
     RUN_TEST(test_tcp_serialization_rejects_too_small_buffer);
     RUN_TEST(test_tcp_serialization_rejects_document_overflow);
     RUN_TEST(test_parse_rejects_escaped_property_names);
+    RUN_TEST(test_match_info_ignores_deferred_v2_display_fields);
     return UNITY_END();
 }

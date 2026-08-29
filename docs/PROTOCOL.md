@@ -139,6 +139,14 @@ Rules:
 - Context never changes timing, scoring, hits, penalties, or round state.
 - To clear context, send both `contextId` and `stage` as empty strings while the device is in Standby.
 
+Protocol v1 intentionally keeps the OLED contract minimal:
+
+- Competitor name and string number are deferred to Protocol v2. Protocol v1 senders must not emit them as defined `match_info` fields.
+- The existing budgets remain 47 identifier bytes for `contextId` and 31 printable ASCII bytes for `stage`; no v1 byte budget is assigned to deferred fields.
+- Protocol v1 receivers ignore unknown uniquely named properties for forward compatibility, but they do not display or otherwise act on deferred fields.
+- The v1 `resultAck` capability negotiation does not advertise display-field support. Adding competitor name or string number requires a versioned contract and explicit capability negotiation.
+- This decision is backward-compatible: the canonical v1 payload remains unchanged, and older firmware continues to receive only `contextId` and `stage`.
+
 The following remote round-control events are forbidden in v1 and must be ignored:
 
 ```text
