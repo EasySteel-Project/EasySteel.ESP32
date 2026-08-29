@@ -52,18 +52,19 @@
     }
   },
   {
-    "id": "device-ping-valid",
+    "id": "device-pong-valid",
     "direction": "device-to-server",
     "layer": "end-to-end",
-    "file": "vectors/device-ping.json",
+    "file": "vectors/device-pong.json",
     "encoding": "utf-8",
     "expectedResult": "accepted",
-    "expectedEvent": "ping",
+    "expectedEvent": "pong",
     "expectedFields": {
       "deviceId": "EasySteel_6134",
       "deviceName": "Lane 1",
       "timeMs": 0,
-      "targetCount": 5
+      "targetCount": 5,
+      "sequence": 42
     }
   },
   {
@@ -100,6 +101,18 @@
     "file": "vectors/device-duplicate-properties.json",
     "encoding": "utf-8",
     "expectedResult": "rejected"
+  },
+  {
+    "id": "server-ping-valid",
+    "direction": "server-to-device",
+    "layer": "end-to-end",
+    "file": "vectors/server-ping.json",
+    "encoding": "utf-8",
+    "expectedResult": "accepted",
+    "expectedEvent": "ping",
+    "expectedFields": {
+      "sequence": 42
+    }
   },
   {
     "id": "server-capabilities-valid",

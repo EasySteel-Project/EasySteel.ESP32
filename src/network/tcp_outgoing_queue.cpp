@@ -8,14 +8,16 @@ struct QueuedMessage
   size_t length;
   size_t offset;
   TcpMessageKind kind;
-  char runId[24];
+  char runId[TCP_RUN_ID_BYTES];
 };
 
 static constexpr size_t OUTGOING_QUEUE_CAPACITY = 16;
 static QueuedMessage outgoingQueue[OUTGOING_QUEUE_CAPACITY];
+static QueuedMessage controlMessage;
 static size_t outgoingHead = 0;
 static size_t outgoingTail = 0;
 static size_t outgoingCount = 0;
+static bool hasControlMessage = false;
 
 bool tcpOutgoingQueuePush(
   const char *payload,
@@ -23,9 +25,29 @@ bool tcpOutgoingQueuePush(
   TcpMessageKind kind,
   const char *runId)
 {
-  if (!payload || length == 0 || length > TCP_EVENT_MAX_BYTES ||
-      outgoingCount >= OUTGOING_QUEUE_CAPACITY)
+  if (!payload || length == 0 || length > TCP_EVENT_MAX_BYTES)
     return false;
+
+  if (kind == TcpMessageKind::Control)
+  {
+    if (hasControlMessage)
+    {
+      return false;
+    }
+
+    memcpy(controlMessage.payload, payload, length);
+    controlMessage.length = length;
+    controlMessage.offset = 0;
+    controlMessage.kind = kind;
+    controlMessage.runId[0] = '\0';
+    hasControlMessage = true;
+    return true;
+  }
+
+  if (outgoingCount >= OUTGOING_QUEUE_CAPACITY)
+  {
+    return false;
+  }
 
   QueuedMessage& message = outgoingQueue[outgoingHead];
   memcpy(message.payload, payload, length);
@@ -41,6 +63,13 @@ bool tcpOutgoingQueuePush(
 
 bool tcpOutgoingQueuePeek(TcpOutgoingView& view)
 {
+  if (hasControlMessage)
+  {
+    view.data = reinterpret_cast<const uint8_t *>(controlMessage.payload + controlMessage.offset);
+    view.length = controlMessage.length - controlMessage.offset;
+    return true;
+  }
+
   if (outgoingCount == 0)
     return false;
 
@@ -52,8 +81,28 @@ bool tcpOutgoingQueuePeek(TcpOutgoingView& view)
 
 bool tcpOutgoingQueueConsume(size_t bytes, TcpOutgoingCompletion& completion)
 {
-  if (outgoingCount == 0 || bytes == 0)
+  if (bytes == 0)
     return false;
+
+  if (hasControlMessage)
+  {
+    const size_t remaining = controlMessage.length - controlMessage.offset;
+    controlMessage.offset += bytes > remaining ? remaining : bytes;
+    if (controlMessage.offset < controlMessage.length)
+    {
+      return false;
+    }
+
+    completion.kind = controlMessage.kind;
+    completion.runId[0] = '\0';
+    hasControlMessage = false;
+    return true;
+  }
+
+  if (outgoingCount == 0)
+  {
+    return false;
+  }
 
   QueuedMessage& message = outgoingQueue[outgoingTail];
   const size_t remaining = message.length - message.offset;
@@ -73,9 +122,10 @@ void tcpOutgoingQueueClear()
   outgoingHead = 0;
   outgoingTail = 0;
   outgoingCount = 0;
+  hasControlMessage = false;
 }
 
 size_t tcpOutgoingQueueGetCount()
 {
-  return outgoingCount;
+  return outgoingCount + (hasControlMessage ? 1 : 0);
 }

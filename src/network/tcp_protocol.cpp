@@ -139,7 +139,7 @@ static bool isKnownDeviceEvent(const char *event)
     strcmp(event, "end") == 0 ||
     strcmp(event, "reset") == 0 ||
     strcmp(event, "settings_changed") == 0 ||
-    strcmp(event, "ping") == 0;
+    strcmp(event, "pong") == 0;
 }
 
 static bool hasValidUniqueTopLevelProperties(const char *json, size_t length)
@@ -254,7 +254,8 @@ size_t tcpProtocolSerializeEvent(
   unsigned long rawTimeMs,
   int missCount,
   int penaltyCount,
-  const char *contextId)
+  const char *contextId,
+  uint32_t sequence)
 {
   if (!buffer || capacity < 2 || !event ||
       !isIdentifier(chipId.c_str(), 32, false) ||
@@ -269,9 +270,12 @@ size_t tcpProtocolSerializeEvent(
 
   const bool isEndEvent = strcmp(event, "end") == 0;
   const bool isHitEvent = strcmp(event, "hit") == 0;
+  const bool isPongEvent = strcmp(event, "pong") == 0;
   if ((isHitEvent && (target < 0 || target >= targetCount)) ||
       (!isHitEvent && target >= 0) ||
-      (!isHitEvent && !isEndEvent && timeMs != 0))
+      (!isHitEvent && !isEndEvent && timeMs != 0) ||
+      (isPongEvent && sequence == 0) ||
+      (!isPongEvent && sequence != 0))
   {
     return 0;
   }
@@ -321,6 +325,11 @@ size_t tcpProtocolSerializeEvent(
            (contextId && contextId[0] != '\0'))
   {
     return 0;
+  }
+
+  if (isPongEvent)
+  {
+    doc["sequence"] = sequence;
   }
 
   if (doc.overflowed())
@@ -426,6 +435,22 @@ bool tcpProtocolParseServerMessage(
     return true;
   }
 
+  if (strcmp(event, "ping") == 0)
+  {
+    if (!doc["sequence"].is<uint32_t>())
+    {
+      return false;
+    }
+    uint32_t sequence = doc["sequence"].as<uint32_t>();
+    if (sequence == 0)
+    {
+      return false;
+    }
+    message.sequence = sequence;
+    message.type = TcpServerMessageType::Ping;
+    return true;
+  }
+
   message.type = TcpServerMessageType::Unknown;
   return true;
 }
@@ -442,12 +467,13 @@ void tcpProtocolWriteEvent(
   unsigned long rawTimeMs,
   int missCount,
   int penaltyCount,
-  const char *contextId)
+  const char *contextId,
+  uint32_t sequence)
 {
   char buffer[TCP_EVENT_MAX_BYTES] = {};
   const size_t length = tcpProtocolSerializeEvent(
     buffer, sizeof(buffer), chipId, deviceName, event, target, timeMs,
-    targetCount, runId, rawTimeMs, missCount, penaltyCount, contextId);
+    targetCount, runId, rawTimeMs, missCount, penaltyCount, contextId, sequence);
   if (length > 0)
   {
     client.write(reinterpret_cast<const uint8_t *>(buffer), length);

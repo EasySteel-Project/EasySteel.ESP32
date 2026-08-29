@@ -53,11 +53,34 @@ void test_queue_has_bounded_capacity(void)
     TEST_ASSERT_EQUAL_UINT32(16, tcpOutgoingQueueGetCount());
 }
 
+void test_control_message_uses_reserved_slot_and_has_priority(void)
+{
+    for (int index = 0; index < 16; index++)
+    {
+        TEST_ASSERT_TRUE(tcpOutgoingQueuePush("live", 4, TcpMessageKind::Live));
+    }
+
+    TEST_ASSERT_TRUE(tcpOutgoingQueuePush("pong", 4, TcpMessageKind::Control));
+    TEST_ASSERT_EQUAL_UINT32(17, tcpOutgoingQueueGetCount());
+
+    TcpOutgoingView view = {};
+    TEST_ASSERT_TRUE(tcpOutgoingQueuePeek(view));
+    TEST_ASSERT_EQUAL_MEMORY("pong", view.data, 4);
+
+    TcpOutgoingCompletion completion = {};
+    TEST_ASSERT_TRUE(tcpOutgoingQueueConsume(4, completion));
+    TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(TcpMessageKind::Control),
+      static_cast<int>(completion.kind));
+    TEST_ASSERT_EQUAL_UINT32(16, tcpOutgoingQueueGetCount());
+}
+
 int main(int argc, char **argv)
 {
     UNITY_BEGIN();
     RUN_TEST(test_queue_preserves_partial_message_until_fully_consumed);
     RUN_TEST(test_result_completion_retains_metadata);
     RUN_TEST(test_queue_has_bounded_capacity);
+    RUN_TEST(test_control_message_uses_reserved_slot_and_has_priority);
     return UNITY_END();
 }

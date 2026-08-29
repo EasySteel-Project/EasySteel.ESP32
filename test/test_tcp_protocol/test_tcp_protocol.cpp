@@ -90,6 +90,9 @@ std::string buildJsonEventForFixture(JsonObjectConst entry)
     const char *contextId = fields["contextId"].is<const char *>()
         ? fields["contextId"].as<const char *>()
         : nullptr;
+    const uint32_t sequence = fields["sequence"].is<uint32_t>()
+        ? fields["sequence"].as<uint32_t>()
+        : 0;
 
     return buildJsonEvent(
         fields["deviceId"].as<const char *>(),
@@ -108,7 +111,8 @@ std::string buildJsonEventForFixture(JsonObjectConst entry)
         fields["penaltyCount"].is<int>()
             ? fields["penaltyCount"].as<int>()
             : 0,
-        contextId);
+        contextId,
+        sequence);
 }
 
 TcpServerMessageType expectedServerMessageType(const char *event)
@@ -124,6 +128,10 @@ TcpServerMessageType expectedServerMessageType(const char *event)
     if (strcmp(event, "match_info") == 0)
     {
         return TcpServerMessageType::MatchInfo;
+    }
+    if (strcmp(event, "ping") == 0)
+    {
+        return TcpServerMessageType::Ping;
     }
     return TcpServerMessageType::Unknown;
 }
@@ -226,6 +234,13 @@ void test_server_parsing_vectors(void)
                 message.stage,
                 fixtureId);
         }
+        else if (message.type == TcpServerMessageType::Ping)
+        {
+            TEST_ASSERT_EQUAL_UINT32_MESSAGE(
+                fields["sequence"].as<uint32_t>(),
+                message.sequence,
+                fixtureId);
+        }
     }
 
     TEST_ASSERT_GREATER_THAN_MESSAGE(
@@ -293,6 +308,43 @@ void test_tcp_serialization_rejects_document_overflow(void)
             5));
 }
 
+void test_result_run_id_accepts_32_hex_bytes_and_rejects_33(void)
+{
+    char buffer[TCP_EVENT_MAX_BYTES] = {};
+    const char *validRunId = "0123456789abcdef0123456789abcdef";
+    TEST_ASSERT_GREATER_THAN_UINT32(
+        0,
+        tcpProtocolSerializeEvent(
+            buffer,
+            sizeof(buffer),
+            "ESP32_A1B2C3",
+            "Target_1",
+            "end",
+            -1,
+            1250,
+            5,
+            validRunId,
+            1250,
+            0,
+            0));
+
+    TEST_ASSERT_EQUAL_UINT32(
+        0,
+        tcpProtocolSerializeEvent(
+            buffer,
+            sizeof(buffer),
+            "ESP32_A1B2C3",
+            "Target_1",
+            "end",
+            -1,
+            1250,
+            5,
+            "0123456789abcdef0123456789abcdef0",
+            1250,
+            0,
+            0));
+}
+
 void test_parse_rejects_escaped_property_names(void)
 {
     const char *json =
@@ -333,6 +385,7 @@ int main(int argc, char **argv)
     RUN_TEST(test_tcp_serialization_rejects_invalid_result);
     RUN_TEST(test_tcp_serialization_rejects_too_small_buffer);
     RUN_TEST(test_tcp_serialization_rejects_document_overflow);
+    RUN_TEST(test_result_run_id_accepts_32_hex_bytes_and_rejects_33);
     RUN_TEST(test_parse_rejects_escaped_property_names);
     RUN_TEST(test_match_info_ignores_deferred_v2_display_fields);
     return UNITY_END();

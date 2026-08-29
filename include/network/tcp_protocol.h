@@ -6,7 +6,7 @@
 constexpr int TCP_PROTOCOL_VERSION = 1;
 constexpr size_t TCP_EVENT_MAX_BYTES = 384;
 constexpr size_t TCP_JSON_MAX_BYTES = TCP_EVENT_MAX_BYTES - 2;
-constexpr size_t TCP_RUN_ID_BYTES = 24;
+constexpr size_t TCP_RUN_ID_BYTES = 33;
 constexpr size_t TCP_CONTEXT_ID_BYTES = 48;
 constexpr size_t TCP_STAGE_NAME_BYTES = 32;
 constexpr unsigned long TCP_MAX_ROUND_TIME_MS = 30000;
@@ -19,7 +19,8 @@ enum class TcpServerMessageType : uint8_t
   Unknown,
   Capabilities,
   Acknowledgement,
-  MatchInfo
+  MatchInfo,
+  Ping
 };
 
 struct TcpServerMessage
@@ -28,6 +29,7 @@ struct TcpServerMessage
   char runId[TCP_RUN_ID_BYTES];
   char contextId[TCP_CONTEXT_ID_BYTES];
   char stage[TCP_STAGE_NAME_BYTES];
+  uint32_t sequence;
 };
 
 /// Serialize one newline-terminated protocol event into a fixed caller-owned buffer.
@@ -45,7 +47,8 @@ size_t tcpProtocolSerializeEvent(
   unsigned long rawTimeMs = 0,
   int missCount = 0,
   int penaltyCount = 0,
-  const char *contextId = nullptr);
+  const char *contextId = nullptr,
+  uint32_t sequence = 0);
 
 /// Parse and validate one server-to-device JSON message.
 /// Unknown v1 events are returned as TcpServerMessageType::Unknown.
@@ -67,4 +70,5 @@ void tcpProtocolWriteEvent(
   unsigned long rawTimeMs = 0,
   int missCount = 0,
   int penaltyCount = 0,
-  const char *contextId = nullptr);
+  const char *contextId = nullptr,
+  uint32_t sequence = 0);

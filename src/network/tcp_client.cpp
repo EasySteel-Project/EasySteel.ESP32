@@ -10,25 +10,26 @@
 #include <cerrno>
 
 static WiFiClient tcpClient;
-static unsigned long lastHeartbeatMs = 0;
-static constexpr unsigned long HEARTBEAT_INTERVAL_MS = 10000;
-
 static unsigned long lastConnectAttemptMs = 0;
 static constexpr unsigned long CONNECT_RETRY_INTERVAL_MS = 15000;
 static constexpr unsigned long CAPABILITY_NEGOTIATION_MS = 1000;
 static constexpr unsigned long RESULT_ACK_TIMEOUT_MS = 3000;
+static constexpr unsigned long SERVER_PING_TIMEOUT_MS = 30000;
 
 enum class ProtocolSessionState { AwaitingCapabilities, Ready };
 static ProtocolSessionState protocolSessionState = ProtocolSessionState::AwaitingCapabilities;
 static unsigned long connectedAtMs = 0;
-static uint32_t bootSessionId = 0;
-static uint32_t nextRunNumber = 1;
+static unsigned long lastServerPingMs = 0;
+static uint32_t lastServerPingSequence = 0;
 static TcpLineFramer incomingFramer;
 
 static void createRunId(char *runId, size_t capacity)
 {
-  snprintf(runId, capacity, "%08lx-%lu", static_cast<unsigned long>(bootSessionId),
-           static_cast<unsigned long>(nextRunNumber++));
+  snprintf(runId, capacity, "%08lx%08lx%08lx%08lx",
+    static_cast<unsigned long>(esp_random()),
+    static_cast<unsigned long>(esp_random()),
+    static_cast<unsigned long>(esp_random()),
+    static_cast<unsigned long>(esp_random()));
 }
 
 static void resetPendingTransmission()
@@ -48,13 +49,14 @@ static bool enqueueEvent(
   unsigned long rawTimeMs = 0,
   int missCount = 0,
   int penaltyCount = 0,
-  const char *contextId = nullptr)
+  const char *contextId = nullptr,
+  uint32_t sequence = 0)
 {
   char payload[TCP_EVENT_MAX_BYTES] = {};
   const size_t length = tcpProtocolSerializeEvent(
     payload, sizeof(payload), chipId, deviceName, event, target, timeMs,
     roundControllerGetTargetCount(), runId, rawTimeMs, missCount, penaltyCount,
-    contextId);
+    contextId, sequence);
   if (length == 0)
   {
     Serial.println("[TCP] Event exceeds the fixed protocol buffer");
@@ -67,7 +69,9 @@ static bool enqueueEvent(
 static void handleServerMessage(
   const char *json,
   size_t length,
-  unsigned long currentMillis)
+  unsigned long currentMillis,
+  const String& chipId,
+  const String& deviceName)
 {
   TcpServerMessage message = {};
   if (!tcpProtocolParseServerMessage(json, length, message))
@@ -112,9 +116,26 @@ static void handleServerMessage(
   {
     roundControllerSetMatchInfo(message.contextId, message.stage);
   }
+
+  if (message.type == TcpServerMessageType::Ping)
+  {
+    if (lastServerPingSequence != 0 &&
+        static_cast<int32_t>(message.sequence - lastServerPingSequence) <= 0)
+    {
+      return;
+    }
+
+    lastServerPingSequence = message.sequence;
+    lastServerPingMs = currentMillis;
+    enqueueEvent(chipId, deviceName, "pong", -1, 0, TcpMessageKind::Control,
+      nullptr, 0, 0, 0, nullptr, message.sequence);
+  }
 }
 
-static void receiveServerMessages(unsigned long currentMillis)
+static void receiveServerMessages(
+  unsigned long currentMillis,
+  const String& chipId,
+  const String& deviceName)
 {
   while (tcpClient.available() > 0)
   {
@@ -124,7 +145,7 @@ static void receiveServerMessages(unsigned long currentMillis)
     const TcpLineFrameResult result = incomingFramer.push(value, json, length);
     if (result == TcpLineFrameResult::Complete)
     {
-      handleServerMessage(json, length, currentMillis);
+      handleServerMessage(json, length, currentMillis, chipId, deviceName);
     }
     else if (result == TcpLineFrameResult::Discarded)
     {
@@ -192,10 +213,9 @@ static void flushOneNonBlockingWrite(unsigned long currentMillis)
 
 void tcpClientInit()
 {
-  lastHeartbeatMs = 0;
   lastConnectAttemptMs = 0;
-  bootSessionId = esp_random();
-  nextRunNumber = 1;
+  lastServerPingMs = 0;
+  lastServerPingSequence = 0;
   incomingFramer.reset();
   resetPendingTransmission();
 }
@@ -307,6 +327,8 @@ void tcpClientTick(
         Serial.println("Connected to server!");
         protocolSessionState = ProtocolSessionState::AwaitingCapabilities;
         connectedAtMs = currentMillis;
+        lastServerPingMs = currentMillis;
+        lastServerPingSequence = 0;
         incomingFramer.reset();
         resetPendingTransmission();
         tcpClientSendEvent(chipId, deviceName, provisioning, "online", -1, 0);
@@ -319,7 +341,7 @@ void tcpClientTick(
     return;
   }
 
-  receiveServerMessages(currentMillis);
+  receiveServerMessages(currentMillis, chipId, deviceName);
 
   if (!tcpClient || !tcpClient.connected())
   {
@@ -341,13 +363,16 @@ void tcpClientTick(
     Serial.println("[OUTBOX] ACK timeout; scheduling result retransmission");
   }
 
-  queueOldestResult(chipId, deviceName);
-
-  if (currentMillis - lastHeartbeatMs >= HEARTBEAT_INTERVAL_MS)
+  if (protocolSessionState == ProtocolSessionState::Ready &&
+      currentMillis - lastServerPingMs >= SERVER_PING_TIMEOUT_MS)
   {
-    lastHeartbeatMs = currentMillis;
-    tcpClientSendEvent(chipId, deviceName, provisioning, "ping", -1, 0);
+    Serial.println("[TCP] Server ping timeout; reconnecting when idle");
+    tcpClient.stop();
+    resetPendingTransmission();
+    return;
   }
+
+  queueOldestResult(chipId, deviceName);
 
   flushOneNonBlockingWrite(currentMillis);
 }

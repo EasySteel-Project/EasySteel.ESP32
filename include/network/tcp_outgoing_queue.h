@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-enum class TcpMessageKind : uint8_t { Live, ConfirmedResult };
+enum class TcpMessageKind : uint8_t { Live, ConfirmedResult, Control };
 
 struct TcpOutgoingView
 {
@@ -15,7 +15,7 @@ struct TcpOutgoingView
 struct TcpOutgoingCompletion
 {
   TcpMessageKind kind;
-  char runId[24];
+  char runId[TCP_RUN_ID_BYTES];
 };
 
 bool tcpOutgoingQueuePush(

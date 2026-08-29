@@ -64,7 +64,7 @@ Every ESP32 event additionally contains:
 | `end` | Result fields below | Final scored time | Reliable result outbox |
 | `reset` | None | `0` | Live, best effort |
 | `settings_changed` | None | `0` | Live, best effort |
-| `ping` | None | `0` | Live, best effort, every 10 seconds |
+| `pong` | `sequence` | `0` | Control response to a server `ping` |
 
 For `hit`, `target` is required and must be in the range `0 <= target < targetCount`. Target `0` is the Stop plate.
 
@@ -74,7 +74,7 @@ An `end` event is created only after physical Range Officer confirmation. It con
 
 | Field | Type | Rule |
 |---|---|---|
-| `runId` | String | Required; 1–23 identifier bytes; unique within the device boot session |
+| `runId` | String | Required; 1–32 identifier bytes. Firmware emits 32 lowercase hexadecimal bytes generated from 128 random bits for every result; unique across device reboots |
 | `rawTimeMs` | Integer | Required raw stopped time before penalties |
 | `missCount` | Integer | Required automatically calculated misses, `0`–`targetCount - 1` |
 | `penaltyCount` | Integer | Required total confirmed 3-second penalty units, `missCount`–`10` |
@@ -97,7 +97,7 @@ Example:
 {"protocolVersion":1,"deviceId":"EasySteel_6134","deviceName":"Lane 1","event":"end","timeMs":7250,"targetCount":5,"runId":"91af20c3-7","rawTimeMs":1250,"missCount":1,"penaltyCount":2,"penaltyTimeMs":6000,"contextId":"match-17:stage-3"}
 ```
 
-The durable idempotency key used by RangeControl is the pair `(deviceId, runId)`. `runId` alone is sufficient only inside the device's current TCP connection.
+The durable idempotency key used by RangeControl is the pair `(deviceId, runId)`. `runId` must never be reused by a device, including after a reboot.
 
 ## 5. Server-to-device messages
 
@@ -120,6 +120,24 @@ RangeControl sends an ACK only after an `end` result has been durably stored or 
 ```
 
 `runId` is required and must exactly match the oldest retained result. Unknown or out-of-order ACKs are ignored.
+
+### Liveness ping
+
+After receiving `online`, RangeControl immediately sends a ping and repeats it every 10 seconds:
+
+```json
+{"protocolVersion":1,"event":"ping","sequence":42}
+```
+
+`sequence` is an unsigned integer in the range `1`–`4294967295`. RangeControl has at most one ping outstanding. The ESP32 accepts only a strictly newer sequence, using unsigned 32-bit rollover arithmetic, and responds without blocking the round controller:
+
+```json
+{"protocolVersion":1,"deviceId":"EasySteel_6134","deviceName":"Lane 1","event":"pong","timeMs":0,"targetCount":5,"sequence":42}
+```
+
+The ESP32 reserves one control-queue slot for `pong`, so a full live-event queue cannot suppress a valid reply. RangeControl measures application-level RTT from the completed ping write to the matching pong receipt. Duplicate, stale, unmatched, and zero sequences are ignored and do not refresh liveness.
+
+If three consecutive pings receive no matching pong, or 30 seconds pass without a valid pong, RangeControl closes the connection. The ESP32 closes a ready connection if it receives no valid server ping for 30 seconds. Neither endpoint attempts a new connection while a round is active.
 
 ### Display-only match context
 
@@ -186,7 +204,7 @@ arm, disarm, start, stop, reset, set_time, set_hit, set_penalty
 - `online` is emitted after each successful connection.
 - `online` must be the first valid device frame and may occur only once per connection.
 - `deviceId` is immutable for the lifetime of a TCP connection; a change is a protocol violation and RangeControl closes the connection.
-- `ping` is emitted every 10 seconds while connected.
+- RangeControl sends `ping` only after `online`; the ESP32 replies with `pong` through its reserved control queue.
 
 ## 8. Validation and compatibility
 
