@@ -16,7 +16,7 @@ constexpr uint16_t DEFAULT_TCP_PORT = 53421;                  // Default timing-
 constexpr unsigned long WIFI_CONNECT_TIMEOUT_MS = 4000;
 
 // --- Hardware Pins ---
-constexpr int SENSOR_PINS[5] = {27, 26, 25, 33, 32}; // Index 0 (Pin 27) = Stop Plate
+constexpr int SENSOR_PINS[5] = {32, 33, 25, 26, 27}; // Index 0 (GPIO 32) = Stop Plate / Port 1
 constexpr int LED_RED_PIN = 4;
 constexpr int LED_GRN_PINS[5] = {19, 18, 5, 17, 16};
 constexpr int BTN_START_PIN = 14;

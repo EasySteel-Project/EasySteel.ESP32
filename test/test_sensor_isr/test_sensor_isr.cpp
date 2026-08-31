@@ -114,8 +114,18 @@ void test_queue_preserves_chronological_hit_order(void) {
     TEST_ASSERT_EQUAL_UINT32(160, hitTime);
 }
 
+void test_sensor_pins_mapping_order(void) {
+    TEST_ASSERT_EQUAL_INT(5, MAX_TARGETS);
+    TEST_ASSERT_EQUAL_INT(32, SENSOR_PINS[0]); // Stop Plate (Port 1)
+    TEST_ASSERT_EQUAL_INT(33, SENSOR_PINS[1]); // Target 2 (Port 2)
+    TEST_ASSERT_EQUAL_INT(25, SENSOR_PINS[2]); // Target 3 (Port 3)
+    TEST_ASSERT_EQUAL_INT(26, SENSOR_PINS[3]); // Target 4 (Port 4)
+    TEST_ASSERT_EQUAL_INT(27, SENSOR_PINS[4]); // Target 5 (Port 5)
+}
+
 int main(int argc, char **argv) {
     UNITY_BEGIN();
+    RUN_TEST(test_sensor_pins_mapping_order);
     RUN_TEST(test_isr_ignored_when_not_running);
     RUN_TEST(test_isr_valid_hit_when_running);
     RUN_TEST(test_isr_per_target_debounce_50ms);
