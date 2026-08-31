@@ -202,28 +202,28 @@ The ULN2803A sinks LED and buzzer cathodes to ground when the ESP32 drives the c
 ## 5. ESP32 Pinout Overview
 
 ```
-                         ┌───────────────┐
-                         │     ESP32     │
-                         │    30-Pin     │
-                         │               │
-                   EN ── [   EN     D23  ] ─→ ULN2803A IN 7 (Buzzer)
-                 (VP) ── [   VP     D22  ] ─→ OLED SCL (I²C)
-                 (VN) ── [   VN     TX0  ] ── (Serial TX Debug)
-               (open) ── [  D34     RX0  ] ── (Serial RX Debug)
-               (open) ── [  D35     D21  ] ─→ OLED SDA (I²C)
+                             ┌───────────────┐
+                             │     ESP32     │
+                             │    30-Pin     │
+                             │               │
+                       EN ── [   EN     D23  ] ─→ ULN2803A IN 7 (Buzzer)
+                     (VP) ── [   VP     D22  ] ─→ OLED SCL (I²C)
+                     (VN) ── [   VN     TX0  ] ── (Serial TX Debug)
+                   (open) ── [  D34     RX0  ] ── (Serial RX Debug)
+                   (open) ── [  D35     D21  ] ─→ OLED SDA (I²C)
 (CD4050 1Y / Port 1) IO32 ←─ [  D32     D19  ] ─→ ULN2803A IN 2 (LED Green 1)
 (CD4050 2Y / Port 2) IO33 ←─ [  D33     D18  ] ─→ ULN2803A IN 3 (LED Green 2)
 (CD4050 3Y / Port 3) IO25 ←─ [  D25      D5  ] ─→ ULN2803A IN 4 (LED Green 3)
 (CD4050 4Y / Port 4) IO26 ←─ [  D26     D17  ] ─→ ULN2803A IN 5 (LED Green 4)
 (CD4050 5Y / Port 5) IO27 ←─ [  D27     D16  ] ─→ ULN2803A IN 6 (LED Green 5)
-     (BTN Start)  IO14 ←─ [  D14      D4  ] ─→ ULN2803A IN 1 (LED Global Red)
-      (BTN Stop)  IO12 ←─ [  D12      D2  ] ── Built-in LED (Heartbeat)
-     (BTN Reset)  IO13 ←─ [  D13     D15  ] ── (open)
-                  GND ── [  GND     GND  ] ── Common Ground (GND)
-                   5V ── [  VIN     3V3  ] ── 3.3V Output (to CD4050 VCC & OLED)
-                         │               │
-                         │   [  USB  ]   │
-                         └───────────────┘
+        (BTN Start)  IO14 ←─ [  D14      D4  ] ─→ ULN2803A IN 1 (LED Global Red)
+         (BTN Stop)  IO12 ←─ [  D12      D2  ] ── Built-in LED (Heartbeat)
+        (BTN Reset)  IO13 ←─ [  D13     D15  ] ── (open)
+                      GND ── [  GND     GND  ] ── Common Ground (GND)
+                       5V ── [  VIN     3V3  ] ── 3.3V Output (to CD4050 VCC & OLED)
+                             │               │
+                             │   [  USB  ]   │
+                             └───────────────┘
 ```
 
 | Pin | Direction | Function | Connected Device / Signal |
