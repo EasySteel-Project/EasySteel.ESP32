@@ -270,6 +270,8 @@ Before field deployment, verify and log the following checks:
 
 The current rating of an individual ULN2803A channel cannot be multiplied across all 8 channels without considering total thermal package dissipation and ambient temperatures.
 
+Reference physical bench measurements and the compatibility cutover procedure are documented in the CD4050BE bench validation protocol (`.agent/runs/ES-hw-cd4050-20260831T125311Z/bench-validation.md`).
+
 ## 7. Manufacturing Documentation Pending
 
 The following production assets are tracked for future public releases:
