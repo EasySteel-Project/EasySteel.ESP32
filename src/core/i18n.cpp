@@ -77,7 +77,7 @@ static const DisplayStrings STRINGS_DISPLAY_DE = {
   .titleSysinfo         = "SYSTEM-INFO",
   .titleSensorMatrix    = "SENSOR LIVE-MATRIX",
 
-  .catTargets           = "1. Spiel & Ziele",
+  .catTargets           = "1. Modus & Ziele",
   .catPhoneTraining     = "2. Handy-Training",
   .catNetwork           = "3. Netzwerk",
   .catTest              = "4. Hardware-Test",
@@ -85,12 +85,12 @@ static const DisplayStrings STRINGS_DISPLAY_DE = {
   .catExit              = "6. Beenden",
 
   .menuTitleMain        = "HAUPTMENUE (%d/%d)",
-  .menuTitleTargets     = "SPIEL & ZIELE (%d/%d)",
+  .menuTitleTargets     = "MODUS & ZIELE (%d/%d)",
   .menuTitleNetwork     = "NETZWERK (%d/%d)",
   .menuTitleTests       = "TESTS (%d/%d)",
 
   .targetCount          = "Zielanzahl",
-  .stopMode             = "Spiel-Modus",
+  .stopMode             = "Modus",
   .modeCompetition      = "Wettkampf",
   .modeAllTargets       = "Alle Ziele",
   .modeReaction         = "Reaktion",
@@ -100,7 +100,7 @@ static const DisplayStrings STRINGS_DISPLAY_DE = {
 
   .titleTargetCount     = "ZIELANZAHL",
   .paramTargetCount     = "Ziele (1..5):",
-  .titleGameMode        = "SPIEL-MODUS",
+  .titleGameMode        = "MODUS",
   .paramMode            = "Modus:",
   .hintGameMode         = "WK / Alle / Reaktion",
   .titleScreensaver     = "AUTO-STANDBY",
