@@ -1,285 +1,286 @@
-# EasySteel Hardware Specification
+# EasySteel hardware and wiring guide
 
-This document is the authoritative hardware reference for the base station, target modules, pinouts, and field cabling. Do not construct systems from older, simplified sketches.
+This guide describes the EasySteel reference hardware: one base station and up to five target modules. It is written for builders who can solder and use a multimeter. You do not need to understand the electronics behind every component.
 
-> ⚠️ **MANDATORY PRE-COMMISSIONING CHECKS:**
-> Before initial power-up, perform a multimeter continuity test to verify there is no short circuit between 5 V, 3.3 V, and GND rails. Next, with the ESP32 removed from its socket, apply a regulated 3.30 V (±0.05 V) supply (from the expansion base-board 3.3V regulator or an external bench supply with common GND) to the 3.3V rail (CD4050BE Pin 1). Verify that applying 5.0 V at each RJ45 sensor input produces <= 3.40 V at the corresponding CD4050BE output pin (strict ESP32-safe limit <= 3.60 V) and <= 0.05 V at grounded Pin 14. Never apply 5 V directly to an ESP32 GPIO pin.
+The pin assignments in this guide match the current ESP32 firmware. Do not build from older sketches.
 
----
+> **Important safety checks before switching on**
+>
+> - Disconnect power while assembling or changing wires.
+> - Check with a multimeter that 5 V, 3.3 V, and GND are not shorted together.
+> - Never connect a 5 V signal directly to an ESP32 pin. The five sensor signals must pass through the CD4050BE level shifter.
+> - Label every EasySteel RJ45 cable. These cables carry power and control signals and must never be connected to Ethernet equipment.
+> - Protect target electronics and cables from bullet fragments, direct hits, rain, and mechanical strain.
 
-## 1. System Architecture & Signal Flow
+## 1. What the parts do
 
-The system comprises a central **Base Station (ESP32 Controller)** and up to **5 Target Modules (Steel Plates)** connected via standard **RJ45 patch cables**.
+Each target contains a piezo disc that detects the vibration of a hit. An LM393 module turns that vibration into a digital signal. A red/green LED shows the target state.
+
+The base station performs three jobs:
+
+1. The **CD4050BE** reduces each 5 V sensor signal to a safe 3.3 V signal for the ESP32.
+2. The **ESP32** runs the firmware and decides which LEDs and buzzer are active.
+3. The **ULN2803A** switches the LEDs and buzzer. It keeps their current away from the ESP32 pins.
 
 ```mermaid
-graph LR
-    subgraph TargetModule["Target Module 1..5 (at Steel Plate)"]
-        PZ["Piezo Disc Element"]
-        LM["LM393 Comparator Module<br/>(Threshold Potentiometer)"]
-        DLED["Duo-LED Red/Green (1x)<br/>(Common Anode +5V)"]
-        PZ -->|"Shock Pulse"| LM
-    end
-
-    subgraph Cabling["Field Cabling"]
-        RJ["5x RJ45 Patch Cables (Cat5e/6)"]
-    end
-
-    subgraph BaseStation["Base Station (Central Controller)"]
-        LVL["CD4050BE Hex Buffer / Level Shifter<br/>(5V DO -> 3.3V Logic)"]
-        ESP["ESP32 NodeMCU (30-Pin)<br/>• Hardware Interrupts (IRAM_ATTR)<br/>• Wi-Fi/TCP Client<br/>• State Machine"]
-        ULN["ULN2803A Darlington Array<br/>(Low-Side Cathode Sink)"]
-        DISP["SH1106 OLED 128×64 (I2C)"]
-        BTN["Start, Stop & Reset Buttons"]
-        BUZ["5V Active Piezo Buzzer"]
-    end
-
-    LM -->|"Pin 1 (5V DO)"| RJ
-    DLED -->|"Pin 3 (Red) / Pin 6 (Green)"| RJ
-    RJ -->|"5V Sensor Signals"| LVL
-    LVL -->|"3.3V Digital"| ESP
-    ESP -->|"3.3V Output"| ULN
-    ULN -->|"GND Sink (Red/Green)"| RJ
-    ESP -->|"I2C"| DISP
-    BTN -->|"GND"| ESP
-    ESP -->|"GPIO"| BUZ
+flowchart TB
+    Hit["1. Hit on steel plate"] --> Piezo["2. Piezo disc"]
+    Piezo --> Sensor["3. LM393 sensor"]
+    Sensor -->|"5 V through RJ45"| Shifter["4. CD4050BE"]
+    Shifter -->|"Safe 3.3 V signal"| ESP32["5. ESP32"]
+    ESP32 --> Driver["6. ULN2803A"]
+    Driver -->|"Switched GND through RJ45"| LED["7. Target red/green LED"]
+    ESP32 --> Local["OLED display and active buzzer"]
 ```
 
----
+## 2. Parts list
 
-## 2. Bill of Materials (BOM)
+### Base station
 
-### A. Base Station (Central Controller)
-
-| Component | Qty | Description / Specification |
+| Part | Quantity | Required details |
 |---|:---:|---|
-| **ESP32 NodeMCU** | 1x | 30-pin variant with expansion base board (set power jumper to 5V) |
-| **CD4050BE IC** | 1x | Texas Instruments Hex non-inverting CMOS buffer / down-converter (DIP-16) |
-| **GS 16 Socket** | 1x | 16-pin IC socket (2.54 mm pitch, 7.62 mm row spacing) for CD4050BE |
-| **KERKO 100N** | 1x | 100 nF ceramic decoupling capacitor across CD4050BE VCC (Pin 1) and GND (Pin 8) |
-| **ULN2803A IC** | 1x | 8-channel Darlington transistor array for low-side cathode switching |
-| **H25SR160 Board** | 1x | FR4 stripboard (2.54 mm grid) for controller shield wiring |
-| **RJ45 Breakout Boards** | 5x | 8P8C RJ45 breakout jacks for Target 1 to 5 cables |
-| **OLED Display** | 1x | SH1106, 128×64 pixels, I2C, address `0x3C`, 3.3V compatible |
-| **Push Buttons** | 3x | Momentary NO: Green (Start), Red (Stop/Penalty), Black (Reset/Score) |
-| **Buzzer** | 1x | 5V active piezo buzzer (start tone and acoustic feedback) |
-| **Power Supply** | 1x | 9V / 12V DC power supply connected to base board barrel jack |
+| ESP32 development board | 1 | 30-pin NodeMCU-style board |
+| Compatible expansion base board | 1 | Must provide regulated 5 V and 3.3 V rails |
+| CD4050BE | 1 | DIP-16, non-inverting level shifter |
+| 16-pin IC socket | 1 | 2.54 mm pitch, 7.62 mm row spacing |
+| 100 nF ceramic capacitor | 1 | Mounted directly between CD4050BE pins 1 and 8 |
+| ULN2803A | 1 | DIP-18, eight-channel Darlington driver |
+| H25SR160 stripboard | 1 | 2.54 mm grid, or an equivalent board |
+| RJ45 breakout socket | 5 | One for each target cable |
+| OLED display | 1 | SH1106, 128 x 64, I2C address `0x3C`, 3.3 V compatible |
+| Normally open push button | 3 | Green for Start, red for Stop/Penalty, black for Reset/Score |
+| Active buzzer | 1 | 5 V; a passive speaker is not a direct replacement |
+| DC power supply | 1 | Must match the documented input range of the exact expansion base board |
 
-### B. Per Target Module (Target 1 to 5)
+> Expansion base boards are not all wired alike. Do not assume that a board accepts 9 V or 12 V because another model does. Check its label or manufacturer documentation and set its power jumper to the 5 V position used by this build.
 
-| Component | Qty | Description / Specification |
+### Each target module
+
+| Part | Quantity | Required details |
 |---|:---:|---|
-| **LM393 Sensor Module** | 1x | Comparator module with digital output (DO). *Note: Desolder original onboard buzzer.* |
-| **Piezo Disc** | 1x | 20mm–27mm bare piezo element soldered directly to LM393 buzzer pads |
-| **Duo-LED Red/Green** | 1x | **Common Anode (+)**. Recommended: 10mm diffused for distance visibility |
-| **Series Resistor Red** | 1x | **~100 Ω** for the red cathode |
-| **Series Resistor Green** | 1x | **~56 Ω** for the green cathode |
-| **RJ45 Breakout Board** | 1x | RJ45 socket inside the target enclosure for patch cable connection |
+| LM393 sensor module | 1 | Digital output (`DO`); remove its original buzzer if fitted |
+| Bare piezo disc | 1 | 20 to 27 mm, connected to the former buzzer pads |
+| Two-colour red/green LED | 1 | Common-anode type: red and green share one positive connection |
+| Red LED resistor | 1 | About 100 ohms |
+| Green LED resistor | 1 | About 56 ohms |
+| RJ45 breakout socket | 1 | Installed inside the protected target enclosure |
 
-> **Note on LED series resistors:** `100 Ω` for Red and `56 Ω` for Green are tested values from the reference hardware build. For different LED models, batches, or supply voltages, verify forward voltage and current limits from the datasheet and measure operating current on the assembled target.
+The resistor values come from the reference build. They are not automatically safe for every LED. Check the LED data sheet and measure its current before prolonged use.
 
----
+## 3. RJ45 cable assignment
 
-## 3. RJ45 Pin Assignment (Ports 1 to 5)
+Use straight-through Cat5e or Cat6 patch cables. T568B at both ends is recommended so that every cable has the wire colours shown below. The colour column is only a cross-check; always follow the pin numbers printed on the breakout board.
 
-Each target connects to the base station via a standard 8-conductor network cable (Cat5e / Cat6):
+> A plug and a socket appear mirrored when viewed from the front. Never choose the pin number by sight alone. Check the breakout-board labels or verify each conductor with a multimeter.
 
-```
-                          RJ45 Jack / Plug
-                       ┌─────────────────────────┐
-                       │  1  2  3  4  5  6  7  8 │
-                       └──┴──┴──┴──┴──┴──┴──┴──┴─┘
-```
-
-| RJ45 Pin | Color Code (T568B) | Signal | Function & Wiring |
+| RJ45 pin | T568B wire colour | Signal | Connection at the target |
 |:---:|---|---|---|
-| **Pin 1** | White / Orange | **Sensor Signal (5V DO)** | Digital output from LM393 (with onboard 10kΩ pull-up) $\rightarrow$ CD4050BE (Inputs 1A..5A, Pins 3, 5, 7, 9, 11) |
-| **Pin 2** | Orange | **GND** | Common ground (bridged to Pin 7+8) $\rightarrow$ LM393 GND |
-| **Pin 3** | White / Green | **Red Signal (Cathode)** | Switched ground from ULN2803A OUT 1 $\rightarrow$ Resistors (~100Ω) $\rightarrow$ Red Cathodes |
-| **Pin 4** | Blue | **+5V Supply** | Common positive (bridged to Pin 5) $\rightarrow$ LM393 VCC & Common LED Anodes |
-| **Pin 5** | White / Blue | **+5V Supply** | Bridge to Pin 4 (for higher current capacity) |
-| **Pin 6** | Green | **Green Signal (Cathode)** | Switched ground from ULN2803A OUT 2..6 $\rightarrow$ Resistors (~56Ω) $\rightarrow$ Green Cathodes |
-| **Pin 7** | White / Brown | **GND** | Bridge to Pin 2 |
-| **Pin 8** | Brown | **GND** | Bridge to Pin 2 |
+| 1 | White/orange | Sensor signal, 5 V | LM393 `DO` |
+| 2 | Orange | GND | LM393 `GND`; bridge to pins 7 and 8 |
+| 3 | White/green | Red LED switched ground | 100-ohm resistor, then red cathode |
+| 4 | Blue | +5 V | LM393 `VCC` and common LED anode; bridge to pin 5 |
+| 5 | White/blue | +5 V | Bridge to pin 4 |
+| 6 | Green | Green LED switched ground | 56-ohm resistor, then green cathode |
+| 7 | White/brown | GND | Bridge to pins 2 and 8 |
+| 8 | Brown | GND | Bridge to pins 2 and 7 |
 
----
+Pins 4 and 5 share the 5 V load. Pins 2, 7, and 8 share the ground return. All bridges must be present at every target.
 
-## 4. Schematics & Wiring
+## 4. Wiring a target module
 
-### 4.1 Target Module (Wiring at Steel Plate)
+Make these five connections inside each target enclosure:
 
-```
-======================================================================
-RJ45 [Pins 4+5 bridged] (+5V)
- │
- ├───> LM393 Module [VCC Pin]
- └───> [Duo-LED Anode / Common Pin +]
+1. Bridge RJ45 pins 4 and 5. Connect them to LM393 `VCC` and to the common anode of the two-colour LED.
+2. Bridge RJ45 pins 2, 7, and 8. Connect them to LM393 `GND`.
+3. Connect RJ45 pin 1 to LM393 `DO`.
+4. Connect RJ45 pin 3 through the 100-ohm resistor to the red LED cathode.
+5. Connect RJ45 pin 6 through the 56-ohm resistor to the green LED cathode.
 
-RJ45 [Pins 2+7+8 bridged] (GND)
- │
- └───> LM393 Module [GND Pin]
+Connect the piezo disc to the LM393 module's former buzzer pads. The module's analogue output, if present, is not used.
 
-RJ45 [Pin 1] (Sensor DO)
- │
- └───> LM393 Module [DO Pin]  (Piezo disc soldered to buzzer pads, onboard 10kΩ pull-up to 5V)
+```text
+RJ45 pins 4 + 5 (+5 V) ──┬── LM393 VCC
+                          └── LED common anode (+)
 
-RJ45 [Pin 3] (Red signal from ULN2803A)
- │
- └───> [ ~100 Ω ] ───> [Duo-LED Red Cathode -]
+RJ45 pins 2 + 7 + 8 (GND) ── LM393 GND
 
-RJ45 [Pin 6] (Green signal from ULN2803A)
- │
- └───> [ ~56 Ω ] ───> [Duo-LED Green Cathode -]
-======================================================================
+RJ45 pin 1 ── LM393 DO
+RJ45 pin 3 ── 100 ohm ── red cathode
+RJ45 pin 6 ──  56 ohm ── green cathode
 ```
 
----
+## 5. Wiring the base station
 
-### 4.2 Base Station
+### 5.1 Power and ground for the target ports
 
-#### 1. Sensor Level Shifting with CD4050BE
+Make the following connections on every base-station RJ45 socket:
 
-The 5V digital outputs from the LM393 sensor modules pass through a Texas Instruments CD4050BE CMOS Hex Non-Inverting Buffer to the 3.3V ESP32 inputs. Powered at 3.3V ($V_{CC}$), the CD4050BE accepts 5V input levels without distortion and actively drives push-pull 3.3V signals to the ESP32 GPIOs with sub-microsecond propagation delay (~30–70 ns).
+- Connect pins 4 and 5 to the protected 5 V rail.
+- Connect pins 2, 7, and 8 to the common GND rail.
 
-A 100 nF ceramic decoupling capacitor (KERKO 100N) must be placed directly across Pin 1 ($V_{CC}$) and Pin 8 ($V_{SS}$/GND). Unused channel 6 input (Pin 14) must be tied to GND to prevent CMOS input floating; output Pin 15 is left unconnected. Pins 13 and 16 are internal no-connects (NC).
+All five ports share these power rails. Do not continue until the polarity and pin numbers have been checked with a multimeter.
 
-```
-                            CD4050BE (DIP-16)
-                             ┌───────∪───────┐
-  (+3.3V ESP32 + 100nF) VCC ─[ 1          16 ]─ NC (Not Connected)
-   (→ ESP32 Pin 32 Stop) 1Y ─[ 2          15 ]─ 6Y (NC / Spare Output)
-   (← RJ45 Port 1 Pin 1) 1A ─[ 3          14 ]─ 6A (Tie to GND)
-   (→ ESP32 Pin 33 Tgt2) 2Y ─[ 4          13 ]─ NC (Not Connected)
-   (← RJ45 Port 2 Pin 1) 2A ─[ 5          12 ]─ 5Y (→ ESP32 Pin 27 Tgt5)
-   (→ ESP32 Pin 25 Tgt3) 3Y ─[ 6          11 ]─ 5A (← RJ45 Port 5 Pin 1)
-   (← RJ45 Port 3 Pin 1) 3A ─[ 7          10 ]─ 4Y (→ ESP32 Pin 26 Tgt4)
-                    GND VSS ─[ 8           9 ]─ 4A (← RJ45 Port 4 Pin 1)
-                             └───────────────┘
+### 5.2 Sensor inputs through the CD4050BE
 
-  5V Signals from Targets         CD4050BE Buffer         3.3V Inputs on ESP32
-  ───────────────────────         ───────────────         ────────────────────
-  RJ45 Port 1 [Pin 1] (Stop) ───> Pin 3 (1A) ── Pin 2 (1Y) ───> ESP32 Pin 32 (Stop Plate)
-  RJ45 Port 2 [Pin 1] (Tgt 2) ──> Pin 5 (2A) ── Pin 4 (2Y) ───> ESP32 Pin 33 (Sensor 2)
-  RJ45 Port 3 [Pin 1] (Tgt 3) ──> Pin 7 (3A) ── Pin 6 (3Y) ───> ESP32 Pin 25 (Sensor 3)
-  RJ45 Port 4 [Pin 1] (Tgt 4) ──> Pin 9 (4A) ── Pin 10 (4Y) ──> ESP32 Pin 26 (Sensor 4)
-  RJ45 Port 5 [Pin 1] (Tgt 5) ──> Pin 11 (5A) ─ Pin 12 (5Y) ──> ESP32 Pin 27 (Sensor 5)
-```
+Use the exact `CD4050BE` part or an electrically verified substitute. The CD4050BE is powered from 3.3 V but can accept the 5 V sensor signals used here. Its outputs are safe for the ESP32 when the circuit is wired correctly.
 
-#### 2. LED & Buzzer Drivers (ULN2803A)
+- Connect pin 1 (`VCC`) to 3.3 V.
+- Connect pin 8 (`GND`) to GND.
+- Place the 100 nF capacitor directly between pins 1 and 8.
+- Connect unused input pin 14 to GND. Leave output pin 15 open.
+- Leave pins 13 and 16 open; the CD4050BE does not use them.
 
-The ULN2803A sinks LED and buzzer cathodes to ground when the ESP32 drives the corresponding pin `HIGH`:
+The drawing shows the chip from above, with its notch at the top:
 
-```
-  GND Rail ───────────────> ULN2803A Pin 9  (GND)
-  5V Rail ────────────────> ULN2803A Pin 10 (COM / Flyback Diodes)
-
-  ESP32 Control Signal            ULN2803A Driver         Output to Target Wiring
-  ────────────────────            ───────────────         ───────────────────────
-  ESP32 Pin 4  (Global Red) ────> IN 1 ──── OUT 1 (P18) ─> ALL RJ45 Ports 1 to 5 [Pin 3]
-  ESP32 Pin 19 (Green Target 1) > IN 2 ──── OUT 2 (P17) ─> RJ45 Port 1 [Pin 6]
-  ESP32 Pin 18 (Green Target 2) > IN 3 ──── OUT 3 (P16) ─> RJ45 Port 2 [Pin 6]
-  ESP32 Pin 5  (Green Target 3) > IN 4 ──── OUT 4 (P15) ─> RJ45 Port 3 [Pin 6]
-  ESP32 Pin 17 (Green Target 4) > IN 5 ──── OUT 5 (P14) ─> RJ45 Port 4 [Pin 6]
-  ESP32 Pin 16 (Green Target 5) > IN 6 ──── OUT 6 (P13) ─> RJ45 Port 5 [Pin 6]
-  ESP32 Pin 23 (Buzzer) ────────> IN 7 ──── OUT 7 (P12) ─> Buzzer (-) Cathode
+```text
+                CD4050BE, TOP VIEW (NOTCH UP)
+                              +------U------+
+3.3 V (VCC)              ---> |  1       16 |      NC
+GPIO 32 (1Y output)      <--- |  2       15 | ---> 6Y output, unused
+RJ45 port 1 (1A input)   ---> |  3       14 | <--- 6A input, connect to GND
+GPIO 33 (2Y output)      <--- |  4       13 |      NC
+RJ45 port 2 (2A input)   ---> |  5       12 | ---> 5Y output to GPIO 27
+GPIO 25 (3Y output)      <--- |  6       11 | <--- RJ45 port 5 (5A input)
+RJ45 port 3 (3A input)   ---> |  7       10 | ---> 4Y output to GPIO 26
+GND                      ---> |  8        9 | <--- RJ45 port 4 (4A input)
+                              +-------------+
 ```
 
-> **Buzzer on ULN2803A (Channel 7):** Designed for a 5V active buzzer. Connect anode to the protected 5V rail; cathode is sinked through ULN2803A. Passive speakers or 12V sirens are not supported in the standard design.
+| Target port | 5 V input from RJ45 pin 1 | 3.3 V output | ESP32 input |
+|:---:|:---:|:---:|:---:|
+| 1, Stop plate | CD4050BE pin 3 (`1A`) | Pin 2 (`1Y`) | GPIO 32 |
+| 2 | Pin 5 (`2A`) | Pin 4 (`2Y`) | GPIO 33 |
+| 3 | Pin 7 (`3A`) | Pin 6 (`3Y`) | GPIO 25 |
+| 4 | Pin 9 (`4A`) | Pin 10 (`4Y`) | GPIO 26 |
+| 5 | Pin 11 (`5A`) | Pin 12 (`5Y`) | GPIO 27 |
 
-#### 3. Buttons & Display
+### 5.3 LEDs and buzzer through the ULN2803A
 
-```
-  ESP32 Pin 14 ───────────> Button 1 (Start / Green) ───────> GND Rail (Active LOW)
-  ESP32 Pin 12 ───────────> Button 2 (Stop/Penalty / Red) ──> GND Rail (Active LOW)
-  ESP32 Pin 13 ───────────> Button 3 (Reset/Score / Black) ─> GND Rail (Active LOW)
+The ULN2803A switches a load by connecting its negative side to GND. This is why the target LEDs use a common positive connection.
 
-  ESP32 Pin 21 (SDA) ─────> OLED Display SDA
-  ESP32 Pin 22 (SCL) ─────> OLED Display SCL
-  3.3V / GND ─────────────> OLED Display VCC / GND
-```
+- Connect ULN2803A pin 9 to GND.
+- Connect pin 10 (`COM`) to the protected 5 V rail. This is the common connection for the built-in protection diodes.
+- Do not connect an LED or buzzer directly to an ESP32 output.
 
----
+The drawing shows the chip from above, with its notch at the top:
 
-## 5. ESP32 Pinout Overview
-
-```
-                             ┌───────────────┐
-                             │     ESP32     │
-                             │    30-Pin     │
-                             │               │
-                       EN ── [   EN     D23  ] ─→ ULN2803A IN 7 (Buzzer)
-                     (VP) ── [   VP     D22  ] ─→ OLED SCL (I²C)
-                     (VN) ── [   VN     TX0  ] ── (Serial TX Debug)
-                   (open) ── [  D34     RX0  ] ── (Serial RX Debug)
-                   (open) ── [  D35     D21  ] ─→ OLED SDA (I²C)
-(CD4050 1Y / Port 1) IO32 ←─ [  D32     D19  ] ─→ ULN2803A IN 2 (LED Green 1)
-(CD4050 2Y / Port 2) IO33 ←─ [  D33     D18  ] ─→ ULN2803A IN 3 (LED Green 2)
-(CD4050 3Y / Port 3) IO25 ←─ [  D25      D5  ] ─→ ULN2803A IN 4 (LED Green 3)
-(CD4050 4Y / Port 4) IO26 ←─ [  D26     D17  ] ─→ ULN2803A IN 5 (LED Green 4)
-(CD4050 5Y / Port 5) IO27 ←─ [  D27     D16  ] ─→ ULN2803A IN 6 (LED Green 5)
-        (BTN Start)  IO14 ←─ [  D14      D4  ] ─→ ULN2803A IN 1 (LED Global Red)
-         (BTN Stop)  IO12 ←─ [  D12      D2  ] ── Built-in LED (Heartbeat)
-        (BTN Reset)  IO13 ←─ [  D13     D15  ] ── (open)
-                      GND ── [  GND     GND  ] ── Common Ground (GND)
-                       5V ── [  VIN     3V3  ] ── 3.3V Output (to CD4050 VCC & OLED)
-                             │               │
-                             │   [  USB  ]   │
-                             └───────────────┘
+```text
+                ULN2803A, TOP VIEW (NOTCH UP)
+                              +------U------+
+GPIO 4, all red LEDs     ---> |  1       18 | ---> RJ45 pin 3, all ports
+GPIO 19, green target 1  ---> |  2       17 | ---> Port 1, RJ45 pin 6
+GPIO 18, green target 2  ---> |  3       16 | ---> Port 2, RJ45 pin 6
+GPIO 5, green target 3   ---> |  4       15 | ---> Port 3, RJ45 pin 6
+GPIO 17, green target 4  ---> |  5       14 | ---> Port 4, RJ45 pin 6
+GPIO 16, green target 5  ---> |  6       13 | ---> Port 5, RJ45 pin 6
+GPIO 23, buzzer          ---> |  7       12 | ---> Buzzer negative
+Unused input                  |  8       11 |      Unused output
+GND                      ---> |  9       10 | <--- COM, protected 5 V
+                              +-------------+
 ```
 
-| Pin | Direction | Function | Connected Device / Signal |
-|:---:|:---:|---|---|
-| **GPIO 32** | Input (ISR) | **Sensor 1 (Stop Plate)** | CD4050BE 1Y $\leftarrow$ 1A $\leftarrow$ RJ45 Port 1 [Pin 1] |
-| **GPIO 33** | Input (ISR) | **Sensor 2** | CD4050BE 2Y $\leftarrow$ 2A $\leftarrow$ RJ45 Port 2 [Pin 1] |
-| **GPIO 25** | Input (ISR) | **Sensor 3** | CD4050BE 3Y $\leftarrow$ 3A $\leftarrow$ RJ45 Port 3 [Pin 1] |
-| **GPIO 26** | Input (ISR) | **Sensor 4** | CD4050BE 4Y $\leftarrow$ 4A $\leftarrow$ RJ45 Port 4 [Pin 1] |
-| **GPIO 27** | Input (ISR) | **Sensor 5** | CD4050BE 5Y $\leftarrow$ 5A $\leftarrow$ RJ45 Port 5 [Pin 1] |
-| **GPIO 4**  | Output | **Global Red LED** | ULN2803A IN 1 $\rightarrow$ OUT 1 $\rightarrow$ ALL RJ45 [Pin 3] |
-| **GPIO 19** | Output | **Green LED Target 1** | ULN2803A IN 2 $\rightarrow$ OUT 2 $\rightarrow$ RJ45 Port 1 [Pin 6] |
-| **GPIO 18** | Output | **Green LED Target 2** | ULN2803A IN 3 $\rightarrow$ OUT 3 $\rightarrow$ RJ45 Port 2 [Pin 6] |
-| **GPIO 5**  | Output | **Green LED Target 3** | ULN2803A IN 4 $\rightarrow$ OUT 4 $\rightarrow$ RJ45 Port 3 [Pin 6] |
-| **GPIO 17** | Output | **Green LED Target 4** | ULN2803A IN 5 $\rightarrow$ OUT 5 $\rightarrow$ RJ45 Port 4 [Pin 6] |
-| **GPIO 16** | Output | **Green LED Target 5** | ULN2803A IN 6 $\rightarrow$ OUT 6 $\rightarrow$ RJ45 Port 5 [Pin 6] |
-| **GPIO 23** | Output | **Piezo Buzzer** | ULN2803A IN 7 $\rightarrow$ OUT 7 $\rightarrow$ Buzzer (-) |
-| **GPIO 14** | Input (Pullup) | **Start Button (Green)** | Green Push Button $\rightarrow$ GND |
-| **GPIO 12** | Input (Pullup) | **Stop/Penalty Button (Red)** | Red Push Button $\rightarrow$ GND |
-| **GPIO 13** | Input (Pullup) | **Reset/Score Button (Black)**| Black Push Button $\rightarrow$ GND (Deep Sleep Wakeup) |
-| **GPIO 21** | I2C | **OLED SDA** | Display SDA |
-| **GPIO 22** | I2C | **OLED SCL** | Display SCL |
+| Function | ESP32 output | ULN2803A input | ULN2803A output | Destination |
+|---|:---:|:---:|:---:|---|
+| All red LEDs | GPIO 4 | Pin 1 | Pin 18 | RJ45 pin 3 on all five ports |
+| Green LED, target 1 | GPIO 19 | Pin 2 | Pin 17 | Port 1, RJ45 pin 6 |
+| Green LED, target 2 | GPIO 18 | Pin 3 | Pin 16 | Port 2, RJ45 pin 6 |
+| Green LED, target 3 | GPIO 5 | Pin 4 | Pin 15 | Port 3, RJ45 pin 6 |
+| Green LED, target 4 | GPIO 17 | Pin 5 | Pin 14 | Port 4, RJ45 pin 6 |
+| Green LED, target 5 | GPIO 16 | Pin 6 | Pin 13 | Port 5, RJ45 pin 6 |
+| Buzzer | GPIO 23 | Pin 7 | Pin 12 | Buzzer negative connection |
 
----
+Connect the buzzer's positive connection to the protected 5 V rail. Leave ULN2803A channel 8 unused. The 500 mA figure often quoted for one ULN2803A channel is not a safe total for every channel at once; the complete circuit must stay within the package's temperature and total-current limits.
 
-## 6. Electrical Dimensioning & Commissioning Checklist
+### 5.4 Buttons and display
 
-Before field deployment, verify and log the following checks:
+Each button connects its GPIO pin to GND when pressed. The firmware enables the ESP32's internal pull-up resistors, so no external button resistors are required.
 
-1. Continuity and short-circuit test across all 5V, 3.3V, and GND rails.
-2. Supply voltage verification: Regulated $V_{CC} = 3.30\text{V} \pm 0.10\text{V}$ ($3.20\text{V}$ to $3.40\text{V}$) at CD4050BE Pin 1 (within ESP32 $3.0\text{V}$–$3.6\text{V}$ operating range); sensor supply $V_{in} = 5.00\text{V} \pm 0.25\text{V}$ at target modules.
-3. Static logic level conversion on each channel with ESP32 detached (using expansion base-board 3.3V regulator or external 3.30V ±0.05V bench supply with common GND):
-   - Input LOW $\le 0.50\text{V} \rightarrow$ Output LOW $\le 0.10\text{V}$.
-   - Input HIGH $\ge 4.50\text{V} \rightarrow$ Output HIGH tracks measured $V_{CC}$ within CMOS saturation bounds: $(V_{CC} - 0.10\text{V}) \le V_{OH} \le V_{CC}$ ($3.10\text{V}$ to $3.40\text{V}$, strictly $\le 3.60\text{V}$ ESP32 maximum absolute limit).
-   - Grounded unused Pin 14 (Channel 6A input) verified $\le 0.05\text{V}$.
-4. Common ground between power supply, base station, and all target modules.
-5. Separate series resistors for red and green cathodes of the Duo-LED.
-6. Measure current draw per target module and total current with all LEDs illuminated.
-7. Ensure power supply, wiring, connectors, and PCB traces have adequate safety margins and fuse protection on the 5V rail.
-8. Clearly label RJ45 cables as EasySteel field wiring. They carry power and GPIO signals and must never be plugged into Ethernet equipment.
-9. Verify strain relief, contact protection, weatherproofing, and impact shielding.
-10. Dynamic cable and transient test with calibrated digital storage oscilloscope (DSO $\ge 20\text{ MHz}$) on $15\text{ m}$ Cat5e/6 field cable:
-    - Peak transient voltage $V_{peak} \le 3.50\text{V}$ (minimum $100\text{ mV}$ margin below ESP32 $3.60\text{V}$ absolute maximum) and undershoot $V_{undershoot} \ge -0.20\text{V}$ relative to GND.
-    - Quantitative trigger test across all 5 channels: 10 consecutive strikes per channel (50 strikes total) with zero duplicate hits outside the 50 ms debounce interval and zero false triggers on idle channels during adjacent channel strikes.
+| Part | ESP32 connection | Other connection |
+|---|:---:|---|
+| Start button, green | GPIO 14 | GND |
+| Stop/Penalty button, red | GPIO 12 | GND |
+| Reset/Score button, black | GPIO 13 | GND |
+| OLED `SDA` | GPIO 21 | — |
+| OLED `SCL` | GPIO 22 | — |
+| OLED power | 3.3 V | GND |
 
-The current rating of an individual ULN2803A channel cannot be multiplied across all 8 channels without considering total thermal package dissipation and ambient temperatures.
+## 6. ESP32 pin summary
 
-Reference physical bench measurements and the compatibility cutover procedure are documented in the CD4050BE bench validation protocol (`.agent/runs/ES-hw-cd4050-20260831T125311Z/bench-validation.md`).
+The following drawing shows the component side of the reference 30-pin board, with the USB connector at the bottom. Board layouts can differ. Always follow the printed GPIO labels on the actual board rather than relying only on physical position.
 
-## 7. Manufacturing Documentation Pending
+```text
+                     ┌──────────────────────────────┐
+                     │            ESP32             │
+                EN   │ EN                      D23  │ → Buzzer driver
+                VP   │ VP                      D22  │ → OLED SCL
+                VN   │ VN                      TX0  │   Serial TX
+              GPIO34 │ D34                     RX0  │   Serial RX
+              GPIO35 │ D35                     D21  │ → OLED SDA
+Stop plate sensor  ← │ D32                     D19  │ → Green target 1
+Target 2 sensor    ← │ D33                     D18  │ → Green target 2
+Target 3 sensor    ← │ D25                      D5  │ → Green target 3
+Target 4 sensor    ← │ D26                     D17  │ → Green target 4
+Target 5 sensor    ← │ D27                     D16  │ → Green target 5
+Start button       ← │ D14                      D4  │ → All red LEDs
+Stop/Penalty       ← │ D12                      D2  │   Built-in LED
+Reset/Score        ← │ D13                     D15  │   Unused
+                     │ GND                     GND  │
+                5 V  │ VIN                     3V3  │ 3.3 V
+                     │          [ USB ]             │
+                     └──────────────────────────────┘
+```
 
-The following production assets are tracked for future public releases:
+This table is the quick reference for checking the completed base station.
 
-- Verified schematic replacing the wiring illustration;
-- PCB / perfboard layout with connector designations;
-- Full pin-to-pin wiring diagram for both RJ45 ends and T568B compliance;
-- Enclosure CAD models with strain relief and ballistic shielding;
-- Defined maximum cable length and acceptance criteria (15 m Cat5e/6 field cable test specified in Section 6);
-- Reference assembly photographs;
-- Complete Bill of Materials with manufacturer part numbers.
+| GPIO | Direction | Function |
+|:---:|:---:|---|
+| 32 | Input | Target 1 sensor, Stop plate |
+| 33 | Input | Target 2 sensor |
+| 25 | Input | Target 3 sensor |
+| 26 | Input | Target 4 sensor |
+| 27 | Input | Target 5 sensor |
+| 4 | Output | All red target LEDs |
+| 19 | Output | Green LED, target 1 |
+| 18 | Output | Green LED, target 2 |
+| 5 | Output | Green LED, target 3 |
+| 17 | Output | Green LED, target 4 |
+| 16 | Output | Green LED, target 5 |
+| 23 | Output | Active buzzer |
+| 14 | Input | Start button |
+| 12 | Input | Stop/Penalty button |
+| 13 | Input | Reset/Score button |
+| 21 | I2C data | OLED `SDA` |
+| 22 | I2C clock | OLED `SCL` |
+
+## 7. First power-up and commissioning
+
+If any check fails, disconnect power and correct the wiring before continuing.
+
+### Basic checks with a multimeter
+
+1. Disconnect the power supply and remove the ESP32 from its socket.
+2. Check that there is no short circuit between 5 V, 3.3 V, and GND.
+3. Check every RJ45 breakout pin against the table in Section 3. Confirm that the two 5 V pins and three GND pins are bridged correctly.
+4. Check that CD4050BE pin 14 is connected to GND and that pins 13, 15, and 16 are not connected.
+5. Apply the normal base-station supply. Measure about 3.3 V at CD4050BE pin 1 and about 5 V at the target supply pins. If the base board does not provide 3.3 V while the ESP32 is removed, this test requires a current-limited 3.3 V bench supply with its GND connected to the base-station GND. If either voltage is outside the allowed range of the fitted boards and components, switch off.
+6. With a common GND, apply 0 V and then 5 V to each CD4050BE input in turn. Its matching output must switch between near 0 V and near 3.3 V. It must never exceed 3.6 V.
+7. Switch off, reinstall the ESP32, and connect one target at a time.
+8. Use the firmware's hardware test to check all sensors, both LED colours, the buttons, the display, and the buzzer.
+9. With all LEDs on, measure the supply current. Confirm that the power supply, fuse, wires, connectors, board tracks, and ULN2803A have enough margin.
+
+### Installation checks
+
+- Add suitable fuse protection to the 5 V rail.
+- Provide strain relief for every cable.
+- Keep electronics and connectors shielded from bullet fragments and direct impact.
+- Weatherproof outdoor enclosures without trapping condensation.
+- Test the system with the actual cable type and length used on the range.
+- For a 15 m cable installation, test every target with at least ten strikes. There must be no missed hits, duplicate hits after the firmware's 50 ms debounce period, or false hits on neighbouring channels.
+
+If cable signals are unstable, have an experienced electronics technician check the ESP32-side signal with an oscilloscope. The signal must stay between -0.2 V and 3.5 V during a hit. Do not use a system that exceeds these limits or produces false hits.
+
+## 8. Manufacturer references
+
+- [Texas Instruments CD4050B product page and data sheet](https://www.ti.com/product/CD4050B)
+- [STMicroelectronics ULN2803A data sheet](https://www.st.com/resource/en/datasheet/uln2803a.pdf)
+- [Espressif ESP32 series data sheet](https://documentation.espressif.com/esp32_datasheet_en.html)
