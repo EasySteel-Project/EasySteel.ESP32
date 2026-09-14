@@ -11,6 +11,7 @@ struct BufferedRunData
   unsigned long timeMs;
   int missCount;
   int penaltyCount;
+  int targetCount;
 };
 
 /// Push a run to the RAM outbox. Returns false if the oldest entry had to be replaced.
@@ -20,7 +21,8 @@ bool offlineBufferPush(
   unsigned long rawTimeMs,
   unsigned long timeMs,
   int missCount,
-  int penaltyCount);
+  int penaltyCount,
+  int targetCount);
 
 /// Copy the oldest run when it is ready to be queued for transmission.
 bool offlineBufferPeekOldestUnsent(BufferedRunData& run);

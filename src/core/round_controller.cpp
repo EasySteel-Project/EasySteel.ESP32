@@ -440,7 +440,7 @@ void roundControllerInit(HwButtons& buttons)
 
   for (int i = 0; i < MAX_TARGETS; i++)
   {
-    pinMode(SENSOR_PINS[i], INPUT_PULLDOWN);
+    pinMode(SENSOR_PINS[i], INPUT);
   }
 
   lastActivityTime = millis();

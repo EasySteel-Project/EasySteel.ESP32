@@ -12,6 +12,7 @@ struct BufferedRun
   unsigned long timeMs;
   int missCount;
   int penaltyCount;
+  int targetCount;
   DeliveryState state;
   bool acknowledgementEligible;
   unsigned long sentAtMs;
@@ -29,7 +30,8 @@ bool offlineBufferPush(
   unsigned long rawTimeMs,
   unsigned long timeMs,
   int missCount,
-  int penaltyCount)
+  int penaltyCount,
+  int targetCount)
 {
   bool retainedAllEntries = true;
   if (backupCount >= BACKUP_BUFFER_SIZE)
@@ -46,6 +48,7 @@ bool offlineBufferPush(
   run.timeMs = timeMs;
   run.missCount = missCount;
   run.penaltyCount = penaltyCount;
+  run.targetCount = targetCount;
   run.state = DeliveryState::Unsent;
   run.acknowledgementEligible = false;
   run.sentAtMs = 0;
@@ -71,6 +74,7 @@ bool offlineBufferPeekOldestUnsent(BufferedRunData& run)
   run.timeMs = oldest.timeMs;
   run.missCount = oldest.missCount;
   run.penaltyCount = oldest.penaltyCount;
+  run.targetCount = oldest.targetCount;
   return true;
 }
 

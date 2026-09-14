@@ -44,6 +44,7 @@ static bool enqueueEvent(
   const char *event,
   int target,
   unsigned long timeMs,
+  int targetCount,
   TcpMessageKind kind,
   const char *runId = nullptr,
   unsigned long rawTimeMs = 0,
@@ -55,7 +56,7 @@ static bool enqueueEvent(
   char payload[TCP_EVENT_MAX_BYTES] = {};
   const size_t length = tcpProtocolSerializeEvent(
     payload, sizeof(payload), chipId, deviceName, event, target, timeMs,
-    roundControllerGetTargetCount(), runId, rawTimeMs, missCount, penaltyCount,
+    targetCount, runId, rawTimeMs, missCount, penaltyCount,
     contextId, sequence);
   if (length == 0)
   {
@@ -127,7 +128,8 @@ static void handleServerMessage(
 
     lastServerPingSequence = message.sequence;
     lastServerPingMs = currentMillis;
-    enqueueEvent(chipId, deviceName, "pong", -1, 0, TcpMessageKind::Control,
+    enqueueEvent(chipId, deviceName, "pong", -1, 0,
+      roundControllerGetTargetCount(), TcpMessageKind::Control,
       nullptr, 0, 0, 0, nullptr, message.sequence);
   }
 }
@@ -164,7 +166,7 @@ static void queueOldestResult(const String& chipId, const String& deviceName)
     return;
 
   if (enqueueEvent(
-        chipId, deviceName, "end", -1, run.timeMs,
+        chipId, deviceName, "end", -1, run.timeMs, run.targetCount,
         TcpMessageKind::ConfirmedResult, run.runId,
         run.rawTimeMs, run.missCount, run.penaltyCount, run.contextId))
   {
@@ -249,7 +251,8 @@ void tcpClientSendEvent(
   }
 
   if (!enqueueEvent(
-        chipId, deviceName, event, target, timeMs, TcpMessageKind::Live))
+        chipId, deviceName, event, target, timeMs,
+        roundControllerGetTargetCount(), TcpMessageKind::Live))
   {
     Serial.println("[TCP] Live event dropped because the outgoing queue is full");
   }
@@ -276,7 +279,8 @@ void tcpClientSendResult(
         rawTimeMs,
         timeMs,
         missCount,
-        penaltyCount))
+        penaltyCount,
+        roundControllerGetTargetCount()))
   {
     Serial.println("[OUTBOX] Warning: oldest result replaced because outbox is full");
   }

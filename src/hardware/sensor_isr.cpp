@@ -90,7 +90,7 @@ void sensorIsrEnable(bool isRunning)
   for (int i = 0; i < MAX_TARGETS; i++)
   {
 #ifndef UNIT_TEST
-    pinMode(SENSOR_PINS[i], INPUT_PULLDOWN);
+    pinMode(SENSOR_PINS[i], INPUT);
 #endif
     attachInterrupt(digitalPinToInterrupt(SENSOR_PINS[i]), isrTable[i], RISING);
   }

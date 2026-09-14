@@ -1,6 +1,7 @@
 #include <unity.h>
 #include "offline_buffer.h"
 #include "offline_buffer.cpp"
+#include "tcp_protocol.cpp"
 #include "Arduino.h"
 #include "mock_globals.cpp"
 
@@ -18,7 +19,8 @@ static bool pushRun(
     unsigned long timeMs,
     int missCount,
     int penaltyCount,
-    const char *contextId = "")
+    const char *contextId = "",
+    int targetCount = 5)
 {
     return offlineBufferPush(
         runId,
@@ -26,7 +28,8 @@ static bool pushRun(
         rawTimeMs,
         timeMs,
         missCount,
-        penaltyCount);
+        penaltyCount,
+        targetCount);
 }
 
 void test_buffer_initial_empty(void)
@@ -122,6 +125,52 @@ void test_ack_timeout_releases_result_and_late_ack_is_accepted(void)
     TEST_ASSERT_EQUAL_UINT32(0, offlineBufferGetCount());
 }
 
+static size_t serializeBufferedRun(const BufferedRunData& run, char *payload, size_t capacity)
+{
+    return tcpProtocolSerializeEvent(
+        payload, capacity, "EasySteel_6134", "Lane 1", "end", -1,
+        run.timeMs, run.targetCount, run.runId, run.rawTimeMs,
+        run.missCount, run.penaltyCount, run.contextId);
+}
+
+void test_retries_preserve_payload_after_target_configuration_changes(void)
+{
+    int configuredTargetCount = 5;
+    TEST_ASSERT_TRUE(pushRun("run-1", 1250, 7250, 2, 2, "stage-1", configuredTargetCount));
+    BufferedRunData run = {};
+    TEST_ASSERT_TRUE(offlineBufferPeekOldestUnsent(run));
+    TEST_ASSERT_EQUAL_INT(5, run.targetCount);
+
+    char originalPayload[TCP_EVENT_MAX_BYTES] = {};
+    const size_t originalLength = serializeBufferedRun(run, originalPayload, sizeof(originalPayload));
+    TEST_ASSERT_GREATER_THAN_UINT32(0, originalLength);
+    TEST_ASSERT_TRUE(offlineBufferMarkOldestQueued(run.runId));
+    TEST_ASSERT_TRUE(offlineBufferCompleteOldestSend(run.runId, 100));
+
+    // A later round uses fewer targets than the original result has misses.
+    // Reading the current configuration would invalidate the original payload.
+    configuredTargetCount = 2;
+    TEST_ASSERT_TRUE(pushRun("run-2", 2000, 2000, 0, 0, "stage-2", configuredTargetCount));
+    TEST_ASSERT_TRUE(offlineBufferReleaseTimedOutAck(3100, 3000));
+    TEST_ASSERT_TRUE(offlineBufferPeekOldestUnsent(run));
+
+    char retryPayload[TCP_EVENT_MAX_BYTES] = {};
+    TEST_ASSERT_EQUAL_UINT32(originalLength, serializeBufferedRun(run, retryPayload, sizeof(retryPayload)));
+    TEST_ASSERT_EQUAL_MEMORY(originalPayload, retryPayload, originalLength);
+    TEST_ASSERT_TRUE(offlineBufferMarkOldestQueued(run.runId));
+    TEST_ASSERT_TRUE(offlineBufferCompleteOldestSend(run.runId, 3200));
+
+    offlineBufferMarkAllUnsent();
+    TEST_ASSERT_TRUE(offlineBufferPeekOldestUnsent(run));
+    TEST_ASSERT_EQUAL_UINT32(originalLength, serializeBufferedRun(run, retryPayload, sizeof(retryPayload)));
+    TEST_ASSERT_EQUAL_MEMORY(originalPayload, retryPayload, originalLength);
+    TEST_ASSERT_TRUE(offlineBufferAcknowledge(run.runId));
+
+    TEST_ASSERT_TRUE(offlineBufferPeekOldestUnsent(run));
+    TEST_ASSERT_EQUAL_STRING("run-2", run.runId);
+    TEST_ASSERT_EQUAL_INT(2, run.targetCount);
+}
+
 void test_ack_timeout_is_millis_rollover_safe(void)
 {
     pushRun("run-1", 1000, 1000, 0, 0);
@@ -145,6 +194,7 @@ int main(int argc, char **argv)
     RUN_TEST(test_reconnect_makes_queued_result_available_again);
     RUN_TEST(test_result_data_is_preserved_for_retransmission);
     RUN_TEST(test_ack_timeout_releases_result_and_late_ack_is_accepted);
+    RUN_TEST(test_retries_preserve_payload_after_target_configuration_changes);
     RUN_TEST(test_ack_timeout_is_millis_rollover_safe);
     return UNITY_END();
 }
