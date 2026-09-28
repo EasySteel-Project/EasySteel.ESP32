@@ -25,6 +25,10 @@ void roundResultUpdate(
 /// Consume the pending result exactly once.
 bool roundResultTake(RoundResult &result);
 
+/// Consume only after the submission callback reports durable acceptance.
+/// The caller invokes this exclusively after a physical confirmation action.
+bool roundResultConfirm(bool (*submit)(const RoundResult&));
+
 /// Discard any pending result without submitting it.
 void roundResultDiscard();
 

@@ -258,7 +258,7 @@ void tcpClientSendEvent(
   }
 }
 
-void tcpClientSendResult(
+bool tcpClientSendResult(
   bool provisioning,
   unsigned long rawTimeMs,
   unsigned long timeMs,
@@ -266,9 +266,9 @@ void tcpClientSendResult(
   int penaltyCount,
   const char *contextId)
 {
-  if (provisioning)
+  if (provisioning || roundControllerGetState() != FINISHED)
   {
-    return;
+    return false;
   }
 
   char runId[TCP_RUN_ID_BYTES] = {};
@@ -282,8 +282,10 @@ void tcpClientSendResult(
         penaltyCount,
         roundControllerGetTargetCount()))
   {
-    Serial.println("[OUTBOX] Warning: oldest result replaced because outbox is full");
+    Serial.println("[OUTBOX] Result not accepted; keep the pending result on the device");
+    return false;
   }
+  return true;
 }
 
 void tcpClientTick(

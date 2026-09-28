@@ -180,7 +180,8 @@ void displayUpdateStandby(
   int penaltyCount,
   bool serverConnected,
   int targetCount,
-  int roundMode)
+  int roundMode,
+  const char *outboxStatus)
 {
 #if USE_DISPLAY
   if (!connected)
@@ -272,10 +273,14 @@ void displayUpdateStandby(
     }
   }
 
-  // Footer navigation hint
+  // Pending durable results remain visible until their ACK has been persisted.
   oled.drawLine(0, 54, 127, 54, SH110X_WHITE);
   oled.setCursor(0, 56);
-  if (roundMode == 2)
+  if (outboxStatus)
+  {
+    oled.print(outboxStatus);
+  }
+  else if (roundMode == 2)
   {
     oled.print(STR_FOOTER_STANDBY_DRILL);
   }

@@ -12,8 +12,8 @@ void tcpClientTick(unsigned long currentMillis, bool provisioning, const String&
 /// Send a best-effort JSON event to the external timing server.
 void tcpClientSendEvent(const String& chipId, const String& deviceName, bool provisioning, const char *event, int target, unsigned long timeMs);
 
-/// Retain a confirmed result in the reliable result outbox.
-void tcpClientSendResult(
+/// Commit a physically confirmed result while FINISHED. False means not accepted.
+bool tcpClientSendResult(
   bool provisioning,
   unsigned long rawTimeMs,
   unsigned long timeMs,

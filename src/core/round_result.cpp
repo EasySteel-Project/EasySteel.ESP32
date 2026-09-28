@@ -44,6 +44,16 @@ void roundResultDiscard()
   resultPending = false;
 }
 
+bool roundResultConfirm(bool (*submit)(const RoundResult&))
+{
+  if (!resultPending || !submit || !submit(pendingResult))
+  {
+    return false;
+  }
+  resultPending = false;
+  return true;
+}
+
 bool roundResultIsPending()
 {
   return resultPending;

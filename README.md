@@ -106,7 +106,7 @@ Every protocol v1 server must reply within one second after connection:
 {"protocolVersion":1,"event":"capabilities","resultAck":true}
 ```
 
-The firmware retains each result in its RAM outbox until acknowledgement:
+The firmware commits each physically confirmed result to its persistent outbox before accepting the confirmation, and retains it until acknowledgement:
 
 ```json
 {"protocolVersion":1,"event":"ack","runId":"91af20c3-7"}
@@ -114,11 +114,11 @@ The firmware retains each result in its RAM outbox until acknowledgement:
 
 Missing or incompatible capability negotiation closes the connection; queued results remain available for the next reconnect. Desktop applications should ignore unknown JSON properties.
 
-The result outbox holds at most 20 entries and is intentionally RAM-only. Missing acknowledgements trigger retransmission after three seconds. A reboot or power loss removes results that have not yet been delivered.
+The result outbox holds at most 20 entries in a versioned, CRC-checked NVS snapshot. Missing acknowledgements trigger retransmission after three seconds. On reboot, retained results are replayed with their original run IDs and result fields. A full outbox blocks new official rounds instead of evicting results. Standby displays the pending ACK count; storage errors block official starts and remain visible. A failed confirmation keeps the result pending: keep the device powered and record the displayed result before servicing storage.
 
 Capabilities and acknowledgements affect delivery only. They never transfer round control to the server.
 
-The round controller only appends serialized messages to a bounded static queue. The network tick performs at most one non-blocking socket write per iteration, so an unresponsive desktop application cannot stall target processing or trigger the task watchdog. Final results remain in the separate outbox until the matching acknowledgement arrives.
+Live events use a bounded static queue. The network tick performs at most one non-blocking socket write per iteration. NVS commits occur at boot, at physical confirmation in `FINISHED`, or while retiring ACKed results in `STANDBY`/`FINISHED`; active rounds never write the outbox to flash. A restart before an ACK is durably retired can replay an already-stored result, so the server must still handle duplicates idempotently. Flash failure, partition erasure, and power loss before a successful confirmation commit remain outside the recovery guarantee; hardware power-cut qualification is required.
 
 ## Web and OTA security
 

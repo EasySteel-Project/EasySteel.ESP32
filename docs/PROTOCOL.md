@@ -184,7 +184,7 @@ arm, disarm, start, stop, reset, set_time, set_hit, set_penalty
 
 ### Confirmed results
 
-- A static RAM outbox retains 20 confirmed results, including all result and context fields.
+- A static 20-entry outbox is backed by a versioned, CRC-checked NVS snapshot containing the original run ID, result fields, target count, and context ID. Physical confirmation succeeds only after its snapshot commit.
 - Results are transmitted oldest first, one at a time.
 - Confirmed results provide **at-least-once delivery**.
 - After a complete socket write, the firmware waits 3 seconds for the matching ACK.
@@ -192,9 +192,10 @@ arm, disarm, start, stop, reset, set_time, set_hit, set_penalty
 - Reconnect also schedules every retained result for retransmission.
 - RangeControl must persist idempotently by `(deviceId, runId)` and ACK identical duplicates again.
 - A duplicate key with different result data is a protocol-integrity error and must not overwrite the stored result automatically.
-- A completed socket write never removes a result. Only the matching canonical ACK removes it from the outbox.
-- If the outbox is full, a newly confirmed result replaces the oldest retained entry and the firmware emits a local warning.
-- Reboot or power loss clears the RAM outbox.
+- A completed socket write never removes a result. A matching canonical ACK marks it in RAM; removal is committed only in `STANDBY` or `FINISHED`, outside active timing.
+- If the outbox is full, new official rounds are blocked and no retained entry is replaced. The OLED shows pending ACKs and storage errors.
+- Reboot restores the last committed snapshot. An ACK not yet durably retired can cause replay of an identical result; server idempotency remains mandatory.
+- A failed commit keeps the confirmation pending and blocks further official admission until restart. Corrupt or unreadable snapshots are not silently reset. Power loss before successful confirmation, erased partitions, and unrecoverable flash damage remain failure boundaries; host recovery tests do not replace hardware power-cut tests.
 
 ## 7. Connection behavior
 

@@ -34,6 +34,14 @@ struct DisplayStrings
   const char *reaction;
   const char *reactionTimeSubtitle;
   const char *drillHint;
+  const char *outboxPendingFormat;
+  const char *outboxFull;
+  const char *outboxStorageError;
+  const char *outboxBlocked;
+  const char *outboxKeepResult;
+  const char *outboxKeepPower;
+  const char *outboxConnect;
+  const char *outboxService;
 
   // --- Target & Split Formatting ---
   const char *stopPlate;

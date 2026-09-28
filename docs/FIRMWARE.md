@@ -141,9 +141,12 @@ The dashboard exposes Start in `STANDBY` and `FINISHED`, Stop in `DELAY` and `RU
 ### Transmission & Queue Reliability
 
 - Live events use a bounded static outgoing queue (16 messages) and are discarded if disconnected.
-- Confirmed results use a separate 20-entry RAM outbox buffer.
-- The outbox is volatile: reboot or power loss clears undelivered runs.
-- If the outbox overflows, a new result replaces the oldest entry and logs a serial warning.
+- Confirmed results use a 20-entry RAM working set backed by one versioned, CRC32-checked NVS blob (`es_outbox/snapshot`). All persisted integers have fixed-width little-endian encoding.
+- Physical confirmation is accepted only after the snapshot commit succeeds. Failure keeps the result pending and displays a storage warning; keep the device powered and record the result before servicing storage.
+- Boot restores retained results even without Wi-Fi. A full outbox blocks new official rounds instead of replacing an old result. Solo Training remains independent.
+- Standby shows the pending ACK count. Full/error warnings suppress the screensaver, as do pending ACKs.
+- ACK reception changes only RAM state. The next network tick in `STANDBY` or `FINISHED` commits removal; `DELAY`, `RUNNING`, and all other states perform no outbox flash writes. Failed writes latch a storage fault until restart, preserving the prior RAM state and avoiding further writes after an uncertain commit.
+- Invalid, incompatible, or unreadable snapshots are never automatically erased. Such failures block official starts and require storage service. Partition erasure and unrecoverable flash damage cannot be repaired by this mechanism.
 - The network loop executes at most one non-blocking socket write (`MSG_DONTWAIT`) per tick, preventing watchdog stalls.
 
 ### Security & OTA Updates
@@ -198,5 +201,7 @@ pio check -e esp32dev --skip-packages
 ```
 
 Native test suites verify button debouncing, sensor ISR queueing, chronological ordering, round state transitions, miss calculations, single-consumption results, persistent storage, protocol serialization, live queues, and the result outbox.
+
+The outbox tests additionally inject failed writes/commits/reads, uncertain commit completion, corrupt snapshots, reboot before ACK cleanup, full capacity, and ring wrap. These host tests verify application recovery logic using an NVS test double; actual flash power-cut behavior and OLED rendering still require hardware qualification. Cut power before/during/after physical confirmation and ACK cleanup, then compare restored run IDs and payloads against RangeControl's durable records. Only a successful confirmation commit promises local retention; an interrupted/failed confirmation must not be reported as accepted.
 
 Compiled firmware binaries are output to `.pio/build/esp32dev/firmware.bin`.

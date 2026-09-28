@@ -6,6 +6,7 @@
 #include "remote_control.h"
 #include "storage.h"
 #include "display.h"
+#include "round_controller.h"
 
 #include <WiFi.h>
 
@@ -24,6 +25,11 @@ bool networkIsProvisioning()
 
 void networkInit(Button *abortBtn)
 {
+  // Restore results even when no Wi-Fi credentials or server connection exist.
+  if (!offlineBufferInit())
+  {
+    Serial.println("[OUTBOX] Recovery failed; storage preserved and official starts blocked");
+  }
   remoteControlInit();
   wifiManagerInit(chipId, apPassword);
 
@@ -84,6 +90,8 @@ void networkStartAPMode()
 
 void networkTick(unsigned long currentMillis)
 {
+  const State roundState = roundControllerGetState();
+  offlineBufferTick(roundState == STANDBY || roundState == FINISHED);
   bool wpsPending = webServerCheckAndClearWpsPending();
   wifiManagerTick(currentMillis, provisioning, wpsPending, chipId, apPassword);
   webServerTick();
@@ -101,14 +109,14 @@ void networkSendEvent(const char *event, int target, unsigned long timeMs)
   tcpClientSendEvent(chipId, deviceName, provisioning, event, target, timeMs);
 }
 
-void networkSendResult(
+bool networkSendResult(
   unsigned long rawTimeMs,
   unsigned long timeMs,
   int missCount,
   int penaltyCount,
   const char *contextId)
 {
-  tcpClientSendResult(
+  return tcpClientSendResult(
     provisioning,
     rawTimeMs,
     timeMs,

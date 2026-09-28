@@ -34,8 +34,8 @@ void networkStartWPS();
 /// Send a best-effort JSON event to the connected server.
 void networkSendEvent(const char *event, int target, unsigned long timeMs);
 
-/// Retain a confirmed result in the reliable result outbox.
-void networkSendResult(
+/// Commit a physically confirmed result. False leaves it pending on the device.
+bool networkSendResult(
   unsigned long rawTimeMs,
   unsigned long timeMs,
   int missCount,

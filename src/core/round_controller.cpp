@@ -13,6 +13,7 @@
 #include "round_state.h"
 #include "remote_control.h"
 #include "training_result.h"
+#include "offline_buffer.h"
 
 static Button* btnStart = nullptr;
 static Button* btnStop = nullptr;
@@ -44,6 +45,7 @@ static int displayCycleIndex = 0;                           // Currently shown s
 static unsigned long lastRoundTimeMs = 0;                   // Last completed round time in ms
 static int lastRoundPenaltyCount = 0;                       // Last completed round penalty count
 static bool currentRoundIsSoloTraining = false;             // Captured when a round starts with a paired phone and no PC
+static bool confirmationFailed = false;
 static char currentStageName[32] = "";                      // Current stage name
 static char currentContextId[48] = "";                      // Opaque match context echoed with confirmed results
 
@@ -73,6 +75,27 @@ static int recordedHitCount = 0;
 
 static void renderStandbyScreen()
 {
+  if (!offlineBufferCanAccept())
+  {
+    char pending[24];
+    snprintf(pending, sizeof(pending), STR_OUTBOX_PENDING_FORMAT,
+      static_cast<unsigned int>(offlineBufferGetCount()),
+      static_cast<unsigned int>(OFFLINE_BUFFER_CAPACITY));
+    const bool failed = offlineBufferHasStorageError();
+    displayUpdateConfirmation(
+      failed ? STR_OUTBOX_STORAGE_ERROR : STR_OUTBOX_FULL,
+      failed ? STR_OUTBOX_SERVICE : pending,
+      STR_OUTBOX_BLOCKED,
+      failed ? STR_OUTBOX_SERVICE : STR_OUTBOX_CONNECT);
+    return;
+  }
+  char pending[24] = {};
+  if (offlineBufferGetCount() > 0)
+  {
+    snprintf(pending, sizeof(pending), STR_OUTBOX_PENDING_FORMAT,
+      static_cast<unsigned int>(offlineBufferGetCount()),
+      static_cast<unsigned int>(OFFLINE_BUFFER_CAPACITY));
+  }
   displayUpdateStandby(
     networkGetDeviceName().c_str(),
     currentStageName,
@@ -80,7 +103,8 @@ static void renderStandbyScreen()
     lastRoundPenaltyCount,
     networkIsServerConnected(),
     menuGetTargetCount(),
-    menuGetRoundMode()
+    menuGetRoundMode(),
+    pending[0] ? pending : nullptr
   );
 }
 
@@ -104,6 +128,7 @@ static void resetToStandby()
   resetHoldActive = false;
   resetLongHandled = false;
   currentRoundIsSoloTraining = false;
+  confirmationFailed = false;
 
   btnStart->wasPressed();
   btnStart->wasReleased();
@@ -151,8 +176,24 @@ static bool allIntermediateTargetsHit()
   return true;
 }
 
+static void renderConfirmationFailure()
+{
+  char timeStr[24];
+  snprintf(timeStr, sizeof(timeStr), STR_TIME_FORMAT, endTime / 1000, endTime % 1000);
+  displayUpdateConfirmation(
+    offlineBufferHasStorageError() ? STR_OUTBOX_STORAGE_ERROR : STR_OUTBOX_FULL,
+    STR_OUTBOX_KEEP_RESULT,
+    timeStr,
+    STR_OUTBOX_KEEP_POWER);
+}
+
 static void updateFinishedDisplay()
 {
+  if (confirmationFailed)
+  {
+    renderConfirmationFailure();
+    return;
+  }
   int roundMode = menuGetRoundMode();
   int targetCount = menuGetTargetCount();
   bool hitMask[MAX_TARGETS] = {false};
@@ -346,24 +387,31 @@ static void processHits(unsigned long currentMillis)
   }
 }
 
-static void submitFinishedResult()
+static bool storeOfficialResult(const RoundResult& result)
+{
+  return networkSendResult(
+    result.rawTimeMs,
+    result.timeMs,
+    result.missCount,
+    result.penaltyCount,
+    currentContextId);
+}
+
+static bool submitFinishedResult()
 {
   if (currentRoundIsSoloTraining)
   {
     roundResultDiscard();
-    return;
+    return true;
   }
 
-  RoundResult result = {};
-  if (roundResultTake(result))
+  if (!roundResultConfirm(storeOfficialResult))
   {
-    networkSendResult(
-      result.rawTimeMs,
-      result.timeMs,
-      result.missCount,
-      result.penaltyCount,
-      currentContextId);
+    confirmationFailed = true;
+    renderConfirmationFailure();
+    return false;
   }
+  return true;
 }
 
 // --- State Input Handlers ---
@@ -396,6 +444,11 @@ static void handleStandbyInput(unsigned long currentMillis, bool startPressed)
     currentRoundIsSoloTraining =
       remoteControlGetState() == RemoteControlState::Paired &&
       !remoteControlIsPcConnected();
+    if (!currentRoundIsSoloTraining && !offlineBufferCanAccept())
+    {
+      renderStandbyScreen();
+      return;
+    }
     networkSendEvent("start_pressed", -1, 0);
     unsigned long delayMs = esp_random() % (START_DELAY_MAX_MS - START_DELAY_MIN_MS) + START_DELAY_MIN_MS;
     countdownId = roundStateNextCountdownId(countdownId);
@@ -615,7 +668,8 @@ void roundControllerTick(unsigned long currentMillis)
   switch (currentState)
   {
   case STANDBY:
-    if (screensaverTimeoutMinutes > 0 && currentMillis - lastActivityTime >= (unsigned long)screensaverTimeoutMinutes * 60000UL)
+    if (offlineBufferGetCount() == 0 && !offlineBufferHasStorageError() &&
+        screensaverTimeoutMinutes > 0 && currentMillis - lastActivityTime >= (unsigned long)screensaverTimeoutMinutes * 60000UL)
     {
       screensaverActive = true;
       displayScreensaverTick(currentMillis, networkGetDeviceName().c_str(), networkIsServerConnected());
@@ -819,7 +873,11 @@ void roundControllerTick(unsigned long currentMillis)
     if (btnReset->wasReleased() && !resetLongHandled && resetHoldActive)
     {
       resetHoldActive = false;
-      submitFinishedResult();
+      if (!submitFinishedResult())
+      {
+        inputCooldownUntil = currentMillis + INPUT_COOLDOWN_MS;
+        return;
+      }
       buzzerPlay(BuzzerPattern::Confirm, currentMillis);
       Serial.print("[BTN] Reset button short press - Round Scored: ");
       Serial.print(endTime);
@@ -830,12 +888,23 @@ void roundControllerTick(unsigned long currentMillis)
       return;
     }
 
+    // An uncertain commit may already contain this physical confirmation.
+    // Keep its fields unchanged until recovery; explicit long Reset still discards RAM.
+    if (confirmationFailed && offlineBufferHasStorageError())
+    {
+      return;
+    }
+
     if (startPressed)
     {
       if (menuGetRoundMode() == 2)
       {
         // Confirm the previous reaction result before immediately starting the next attempt.
-        submitFinishedResult();
+        if (!submitFinishedResult())
+        {
+          inputCooldownUntil = currentMillis + INPUT_COOLDOWN_MS;
+          return;
+        }
         resetToStandby();
         handleStandbyInput(currentMillis, true);
         return;

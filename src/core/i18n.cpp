@@ -28,6 +28,14 @@ static const DisplayStrings STRINGS_DISPLAY_DE = {
   .reaction             = "REAKTION",
   .reactionTimeSubtitle = "Reaktionszeit!",
   .drillHint            = "Stop plate treffen",
+  .outboxPendingFormat  = "Warte auf ACK: %u/%u",
+  .outboxFull           = "Ergebnisspeicher voll",
+  .outboxStorageError   = "Speicherfehler",
+  .outboxBlocked        = "Official Start: LOCK",
+  .outboxKeepResult     = "Ergebnis ungesichert",
+  .outboxKeepPower      = "Geraet anlassen",
+  .outboxConnect        = "PC verbinden",
+  .outboxService        = "Speicher pruefen",
 
   // Target & Split Formatting
   .stopPlate            = "Stop plate",
@@ -210,6 +218,14 @@ static const DisplayStrings STRINGS_DISPLAY_EN = {
   .reaction             = "REACTION",
   .reactionTimeSubtitle = "Reaction Time!",
   .drillHint            = "Hit Stop plate",
+  .outboxPendingFormat  = "Pending ACK: %u/%u",
+  .outboxFull           = "Outbox full",
+  .outboxStorageError   = "Storage error",
+  .outboxBlocked        = "Official Start: LOCK",
+  .outboxKeepResult     = "Result not saved",
+  .outboxKeepPower      = "Keep device powered",
+  .outboxConnect        = "Connect to PC",
+  .outboxService        = "Service required",
 
   // Target & Split Formatting
   .stopPlate            = "Stop plate",

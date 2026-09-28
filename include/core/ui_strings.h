@@ -24,6 +24,14 @@
 #define STR_REACTION i18n().reaction
 #define STR_REACTION_TIME_SUBTITLE i18n().reactionTimeSubtitle
 #define STR_DRILL_HINT i18n().drillHint
+#define STR_OUTBOX_PENDING_FORMAT i18n().outboxPendingFormat
+#define STR_OUTBOX_FULL i18n().outboxFull
+#define STR_OUTBOX_STORAGE_ERROR i18n().outboxStorageError
+#define STR_OUTBOX_BLOCKED i18n().outboxBlocked
+#define STR_OUTBOX_KEEP_RESULT i18n().outboxKeepResult
+#define STR_OUTBOX_KEEP_POWER i18n().outboxKeepPower
+#define STR_OUTBOX_CONNECT i18n().outboxConnect
+#define STR_OUTBOX_SERVICE i18n().outboxService
 
 // --- Target & Split Formatting ---
 #define STR_STOP_PLATE i18n().stopPlate

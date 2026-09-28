@@ -14,7 +14,13 @@ struct BufferedRunData
   int targetCount;
 };
 
-/// Push a run to the RAM outbox. Returns false if the oldest entry had to be replaced.
+constexpr size_t OFFLINE_BUFFER_CAPACITY = 20;
+
+/// Restore durable results at boot, even when Wi-Fi is unavailable. Fails closed.
+bool offlineBufferInit();
+
+/// Commit a physically confirmed run outside active rounds. Never evicts old results.
+/// False means the caller must retain the pending result and show a failure.
 bool offlineBufferPush(
   const char *runId,
   const char *contextId,
@@ -40,14 +46,20 @@ bool offlineBufferReleaseTimedOutAck(
   unsigned long currentMillis,
   unsigned long timeoutMs);
 
-/// Remove the oldest sent run if its ID matches the server acknowledgement.
+/// Mark the oldest sent run acknowledged in RAM without performing any flash writes.
 bool offlineBufferAcknowledge(const char *runId);
+
+/// Persist acknowledged removal only when storageAllowed is true (no active round).
+void offlineBufferTick(bool storageAllowed);
+
+/// New official rounds require a healthy store and a free result slot.
+bool offlineBufferCanAccept();
+
+/// A storage error is latched until boot/reinitialization; never auto-clear the store.
+bool offlineBufferHasStorageError();
 
 /// Mark retained entries for retransmission after reconnecting.
 void offlineBufferMarkAllUnsent();
 
 /// Returns the number of buffered runs currently in memory.
 size_t offlineBufferGetCount();
-
-/// Clear all buffered runs in memory.
-void offlineBufferClear();

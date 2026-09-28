@@ -1,5 +1,6 @@
 #include <unity.h>
 #include <cstring>
+#include <cstdio>
 #include "i18n.h"
 #include "i18n.cpp"
 
@@ -119,6 +120,24 @@ void test_i18n_display_strings_max_length_en(void) {
     TEST_ASSERT_TRUE(strlen(d.catPhoneTraining) <= 21);
 }
 
+void test_outbox_messages_fit_the_display(void) {
+    const Language languages[] = {Language::DE, Language::EN};
+    for (Language language : languages) {
+        i18nSetLanguage(language);
+        const DisplayStrings& d = i18n();
+        TEST_ASSERT_TRUE(strlen(d.outboxFull) <= 21);
+        TEST_ASSERT_TRUE(strlen(d.outboxStorageError) <= 21);
+        TEST_ASSERT_TRUE(strlen(d.outboxBlocked) <= 20);
+        TEST_ASSERT_TRUE(strlen(d.outboxKeepResult) <= 20);
+        TEST_ASSERT_TRUE(strlen(d.outboxKeepPower) <= 20);
+        TEST_ASSERT_TRUE(strlen(d.outboxConnect) <= 21);
+        TEST_ASSERT_TRUE(strlen(d.outboxService) <= 20);
+        char pending[32];
+        snprintf(pending, sizeof(pending), d.outboxPendingFormat, 20U, 20U);
+        TEST_ASSERT_TRUE(strlen(pending) <= 20);
+    }
+}
+
 int main(int argc, char **argv) {
     UNITY_BEGIN();
     RUN_TEST(test_i18n_default_language_is_de);
@@ -127,5 +146,6 @@ int main(int argc, char **argv) {
     RUN_TEST(test_i18n_standard_stage_names_preserved);
     RUN_TEST(test_i18n_display_strings_max_length_de);
     RUN_TEST(test_i18n_display_strings_max_length_en);
+    RUN_TEST(test_outbox_messages_fit_the_display);
     return UNITY_END();
 }
