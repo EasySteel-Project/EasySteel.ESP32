@@ -123,7 +123,9 @@ void loop()
 
   // Non-blocking input cooldown
   if (currentMillis < mainCooldownUntil)
+  {
     return;
+  }
 
   if (!provisioning)
   {

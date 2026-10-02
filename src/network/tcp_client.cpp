@@ -11,7 +11,7 @@
 
 static WiFiClient tcpClient;
 static unsigned long lastConnectAttemptMs = 0;
-static constexpr unsigned long CONNECT_RETRY_INTERVAL_MS = 15000;
+static constexpr unsigned long CONNECT_RETRY_INTERVAL_MS = 3000;
 static constexpr unsigned long CAPABILITY_NEGOTIATION_MS = 1000;
 static constexpr unsigned long RESULT_ACK_TIMEOUT_MS = 3000;
 static constexpr unsigned long SERVER_PING_TIMEOUT_MS = 30000;
@@ -297,7 +297,9 @@ void tcpClientTick(
   const String& deviceName)
 {
   if (provisioning || serverIP.length() == 0 || WiFi.status() != WL_CONNECTED)
+  {
     return;
+  }
 
   if (!tcpClient || !tcpClient.connected())
   {
