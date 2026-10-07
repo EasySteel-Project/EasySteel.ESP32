@@ -4,8 +4,8 @@
 
 enum class BuzzerPattern {
   None = 0,
-  Start,       // Long beep (1000ms ON)
-  Confirm,     // Medium confirmation beep (150ms ON)
+  Start,       // Round start only: long beep (1000ms ON)
+  Confirm,     // Confirmation: two short beeps (50ms ON, 50ms OFF, 50ms ON)
   DoubleShort, // Double short beep (50ms ON, 50ms OFF, 50ms ON)
   SingleShort, // Single short beep (30ms ON)
   MenuClick,   // Crisp hardware click (~2ms)

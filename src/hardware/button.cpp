@@ -3,7 +3,7 @@
 Button::Button(uint8_t pin, bool pullUp, bool activeLow)
   : _pin(pin), _pullUp(pullUp), _activeLow(activeLow),
     _state(false), _lastRawState(activeLow), _lastDebounceTime(0),
-    _wasPressed(false), _wasReleased(false), _pressStartTime(0),
+    _wasPressed(false), _wasReleased(false), _pressConsumed(false), _pressStartTime(0),
     _clickCount(0), _lastClickTime(0)
 {
 }
@@ -40,6 +40,7 @@ bool Button::update(unsigned long currentMillis)
 
       if (_state)
       {
+        _pressConsumed = false;
         _wasPressed = true;
         _pressStartTime = currentMillis;
 
@@ -56,7 +57,7 @@ bool Button::update(unsigned long currentMillis)
       }
       else
       {
-        _wasReleased = true;
+        _wasReleased = !_pressConsumed;
       }
     }
   }
@@ -87,6 +88,13 @@ bool Button::wasReleased()
   return ret;
 }
 
+void Button::consumeCurrentPress()
+{
+  _wasPressed = false;
+  _wasReleased = false;
+  _pressConsumed = true;
+}
+
 // Checks if the button is currently held down
 bool Button::isDown() const
 {
@@ -96,7 +104,7 @@ bool Button::isDown() const
 // Checks if the button has been held down continuously for a specified duration
 bool Button::isHeldFor(unsigned long durationMs, unsigned long currentMillis) const
 {
-  return _state && (currentMillis - _pressStartTime >= durationMs);
+  return _state && !_pressConsumed && (currentMillis - _pressStartTime >= durationMs);
 }
 
 uint8_t Button::getClickCount() const

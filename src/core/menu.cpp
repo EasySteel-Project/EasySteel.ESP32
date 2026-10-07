@@ -22,6 +22,7 @@ enum MenuState
   MENU_STATE_TARGET_MENU,
   MENU_STATE_TARGET_COUNT_EDIT,
   MENU_STATE_STOP_MODE_EDIT,
+  MENU_STATE_PREP_DELAY_EDIT,
   MENU_STATE_SCREENSAVER_EDIT,
   MENU_STATE_LANGUAGE_EDIT,
   MENU_STATE_NET_MENU,
@@ -45,6 +46,7 @@ static int testSelectIndex = 0;    // 0..2
 static int configuredTargetCount = MAX_TARGETS;
 static bool configuredRequireAllTargets = false;
 static int configuredRoundMode = 0;
+static int configuredPreparationDelay = 0;
 static int configuredScreensaverTimeout = 5;
 static Language configuredLanguage = Language::DE;
 
@@ -59,9 +61,21 @@ static bool resetWasHeldLong = false;
 
 static constexpr unsigned long HOLD_LONG_PRESS_MS = 1000;
 static constexpr int MAIN_CAT_COUNT = 6;
-static constexpr int TARGET_SUB_COUNT = 5;
+static constexpr int TARGET_SUB_COUNT = 6;
 static constexpr int NET_ITEM_COUNT = 12;
 static constexpr int TEST_SELECT_COUNT = 3;
+
+// Keep scheduled tones progressing during the existing idle-menu message pause.
+static void waitForMenuFeedback(unsigned long durationMs)
+{
+  const unsigned long startedAt = millis();
+  while (millis() - startedAt < durationMs)
+  {
+    buzzerTick(millis());
+    delay(1);
+  }
+  buzzerTick(millis());
+}
 
 
 void menuInit(HwButtons& buttons)
@@ -73,6 +87,10 @@ void menuInit(HwButtons& buttons)
 
 void menuEnter(unsigned long currentMillis)
 {
+  // The entry chord must not become a navigation or exit action inside the menu.
+  btnStop->consumeCurrentPress();
+  btnReset->consumeCurrentPress();
+  resetWasHeldLong = false;
   menuActive = true;
   currentState = MENU_STATE_MAIN_CAT;
   mainCatIndex = 0;
@@ -114,6 +132,18 @@ void menuSetRoundMode(int mode)
   configuredRequireAllTargets = (mode == 1);
 }
 
+int menuGetPreparationDelay()
+{
+  return configuredPreparationDelay;
+}
+
+void menuSetPreparationDelay(int seconds)
+{
+  if (seconds >= 0 && seconds <= 30)
+  {
+    configuredPreparationDelay = seconds;
+  }
+}
 
 int menuGetScreensaverTimeout()
 {
@@ -178,14 +208,17 @@ static void menuUpdateDisplay()
     char item2[24];
     snprintf(item2, sizeof(item2), "2. %s", STR_STOP_MODE);
     char item3[24];
-    snprintf(item3, sizeof(item3), "3. %s", STR_SCREENSAVER);
+    snprintf(item3, sizeof(item3), "3. %s", STR_PREP_DELAY);
     char item4[24];
-    snprintf(item4, sizeof(item4), "4. %s", STR_LANGUAGE);
+    snprintf(item4, sizeof(item4), "4. %s", STR_SCREENSAVER);
+    char item5[24];
+    snprintf(item5, sizeof(item5), "5. %s", STR_LANGUAGE);
     const char *targetItems[TARGET_SUB_COUNT] = {
       item1,
       item2,
       item3,
       item4,
+      item5,
       STR_BACK
     };
     char title[24];
@@ -209,6 +242,20 @@ static void menuUpdateDisplay()
     break;
   }
 
+  case MENU_STATE_PREP_DELAY_EDIT:
+  {
+    char valStr[16];
+    if (configuredPreparationDelay == 0)
+    {
+      snprintf(valStr, sizeof(valStr), STR_VALUE_TEXT_FORMAT, STR_TIMEOUT_OFF);
+    }
+    else
+    {
+      snprintf(valStr, sizeof(valStr), STR_VALUE_SECONDS_FORMAT, configuredPreparationDelay);
+    }
+    displayUpdateValueEdit(STR_TITLE_PREP_DELAY, STR_PARAM_PREP_DELAY, valStr, STR_HINT_PREP_DELAY, STR_FOOTER_NAV);
+    break;
+  }
 
   case MENU_STATE_SCREENSAVER_EDIT:
   {
@@ -422,6 +469,7 @@ bool menuTick(unsigned long currentMillis)
     }
     else if (currentState == MENU_STATE_TARGET_COUNT_EDIT ||
              currentState == MENU_STATE_STOP_MODE_EDIT ||
+             currentState == MENU_STATE_PREP_DELAY_EDIT ||
              currentState == MENU_STATE_SCREENSAVER_EDIT ||
              currentState == MENU_STATE_LANGUAGE_EDIT)
     {
@@ -454,9 +502,11 @@ bool menuTick(unsigned long currentMillis)
       storageSaveRoundMode(configuredRoundMode);
       storageSaveRequireAllTargets(configuredRoundMode == 1);
       storageSaveScreensaverTimeout(configuredScreensaverTimeout);
+      storageSavePreparationDelay(configuredPreparationDelay);
       storageSaveLanguage((int)configuredLanguage);
       roundControllerSetScreensaverTimeout(configuredScreensaverTimeout);
-      buzzerPlay(BuzzerPattern::Start, currentMillis);
+      roundControllerSetPreparationDelay(configuredPreparationDelay);
+      buzzerPlay(BuzzerPattern::Confirm, currentMillis);
       menuActive = false;
       networkSendEvent("settings_changed", -1, 0);
       return false;
@@ -495,7 +545,7 @@ bool menuTick(unsigned long currentMillis)
           else if (networkIsWiFiConnected() && remoteControlBeginPairing(currentMillis))
           {
             trainingResultReset();
-            buzzerPlay(BuzzerPattern::Start, currentMillis);
+            buzzerPlay(BuzzerPattern::Confirm, currentMillis);
             currentState = MENU_STATE_REMOTE_PAIRING;
           }
           else
@@ -512,9 +562,11 @@ bool menuTick(unsigned long currentMillis)
           storageSaveRoundMode(configuredRoundMode);
           storageSaveRequireAllTargets(configuredRoundMode == 1);
           storageSaveScreensaverTimeout(configuredScreensaverTimeout);
+          storageSavePreparationDelay(configuredPreparationDelay);
           storageSaveLanguage((int)configuredLanguage);
           roundControllerSetScreensaverTimeout(configuredScreensaverTimeout);
-          buzzerPlay(BuzzerPattern::Start, currentMillis);
+          roundControllerSetPreparationDelay(configuredPreparationDelay);
+          buzzerPlay(BuzzerPattern::Confirm, currentMillis);
           menuActive = false;
           networkSendEvent("settings_changed", -1, 0);
           return false;
@@ -543,9 +595,10 @@ bool menuTick(unsigned long currentMillis)
         {
         case 0: currentState = MENU_STATE_TARGET_COUNT_EDIT; break;
         case 1: currentState = MENU_STATE_STOP_MODE_EDIT; break;
-        case 2: currentState = MENU_STATE_SCREENSAVER_EDIT; break;
-        case 3: currentState = MENU_STATE_LANGUAGE_EDIT; break;
-        case 4: currentState = MENU_STATE_MAIN_CAT; break;
+        case 2: currentState = MENU_STATE_PREP_DELAY_EDIT; break;
+        case 3: currentState = MENU_STATE_SCREENSAVER_EDIT; break;
+        case 4: currentState = MENU_STATE_LANGUAGE_EDIT; break;
+        case 5: currentState = MENU_STATE_MAIN_CAT; break;
         }
         displayNeedsUpdate = true;
       }
@@ -567,7 +620,7 @@ bool menuTick(unsigned long currentMillis)
       if (resetShortPress)
       {
         storageSaveTargetCount(configuredTargetCount);
-        buzzerPlay(BuzzerPattern::Start, currentMillis);
+        buzzerPlay(BuzzerPattern::Confirm, currentMillis);
         currentState = MENU_STATE_TARGET_MENU;
         displayNeedsUpdate = true;
       }
@@ -592,11 +645,52 @@ bool menuTick(unsigned long currentMillis)
       {
         storageSaveRoundMode(configuredRoundMode);
         storageSaveRequireAllTargets(configuredRoundMode == 1);
-        buzzerPlay(BuzzerPattern::Start, currentMillis);
+        buzzerPlay(BuzzerPattern::Confirm, currentMillis);
         currentState = MENU_STATE_TARGET_MENU;
         displayNeedsUpdate = true;
       }
       break;
+
+    case MENU_STATE_PREP_DELAY_EDIT:
+    {
+      constexpr int options[14] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 30};
+      int curIdx = 0;
+      for (int i = 0; i < 14; i++)
+      {
+        if (options[i] == configuredPreparationDelay)
+        {
+          curIdx = i;
+          break;
+        }
+        if (options[i] < configuredPreparationDelay)
+        {
+          curIdx = i;
+        }
+      }
+      if (startPressed)
+      {
+        curIdx = (curIdx + 1) % 14;
+        configuredPreparationDelay = options[curIdx];
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        displayNeedsUpdate = true;
+      }
+      if (stopPressed)
+      {
+        curIdx = (curIdx - 1 + 14) % 14;
+        configuredPreparationDelay = options[curIdx];
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        displayNeedsUpdate = true;
+      }
+      if (resetShortPress)
+      {
+        storageSavePreparationDelay(configuredPreparationDelay);
+        roundControllerSetPreparationDelay(configuredPreparationDelay);
+        buzzerPlay(BuzzerPattern::Confirm, currentMillis);
+        currentState = MENU_STATE_TARGET_MENU;
+        displayNeedsUpdate = true;
+      }
+      break;
+    }
 
 
     case MENU_STATE_SCREENSAVER_EDIT:
@@ -629,7 +723,7 @@ bool menuTick(unsigned long currentMillis)
       {
         storageSaveScreensaverTimeout(configuredScreensaverTimeout);
         roundControllerSetScreensaverTimeout(configuredScreensaverTimeout);
-        buzzerPlay(BuzzerPattern::Start, currentMillis);
+        buzzerPlay(BuzzerPattern::Confirm, currentMillis);
         currentState = MENU_STATE_TARGET_MENU;
         displayNeedsUpdate = true;
       }
@@ -648,7 +742,7 @@ bool menuTick(unsigned long currentMillis)
       {
         storageSaveLanguage((int)configuredLanguage);
         i18nSetLanguage(configuredLanguage);
-        buzzerPlay(BuzzerPattern::Start, currentMillis);
+        buzzerPlay(BuzzerPattern::Confirm, currentMillis);
         currentState = MENU_STATE_TARGET_MENU;
         displayNeedsUpdate = true;
       }
@@ -677,29 +771,29 @@ bool menuTick(unsigned long currentMillis)
           bool ok = networkReconnectWiFi(btnStop);
           if (ok)
           {
-            buzzerPlay(BuzzerPattern::Start, currentMillis);
             displayUpdate(STR_WLAN_OK, STR_STATUS_CONNECTED);
-            delay(1000);
+            buzzerPlay(BuzzerPattern::Confirm, millis());
+            waitForMenuFeedback(1000);
           }
           else
           {
             buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
             displayUpdate(STR_WLAN_ERROR, STR_CONNECT_FAILED);
-            delay(1000);
+            waitForMenuFeedback(1000);
           }
           displayNeedsUpdate = true;
         }
         else if (netItemIndex == 8) // WLAN Setup (AP)
         {
-          buzzerPlay(BuzzerPattern::Start, currentMillis);
           networkStartAPMode();
+          buzzerPlay(BuzzerPattern::Confirm, millis());
           menuActive = false;
           return false;
         }
         else if (netItemIndex == 9) // WPS Starten
         {
-          buzzerPlay(BuzzerPattern::Start, currentMillis);
           networkStartWPS();
+          buzzerPlay(BuzzerPattern::Confirm, millis());
         }
         else if (netItemIndex == 10) // WLAN loeschen
         {
@@ -733,10 +827,10 @@ bool menuTick(unsigned long currentMillis)
     case MENU_STATE_WIFI_RESET_CONFIRM:
       if (startPressed) // JA
       {
-        buzzerPlay(BuzzerPattern::Start, currentMillis);
         displayUpdate(STR_RESET, STR_WIFI_CLEARED);
         networkResetCredentials();
-        delay(1000);
+        buzzerPlay(BuzzerPattern::Confirm, millis());
+        waitForMenuFeedback(1000);
         ESP.restart();
       }
       if (stopPressed || resetShortPress) // NEIN
@@ -834,7 +928,7 @@ bool menuTick(unsigned long currentMillis)
       {
         if (startPressed || stopPressed)
         {
-          buzzerPlay(BuzzerPattern::Start, currentMillis);
+          buzzerPlay(BuzzerPattern::SingleShort, currentMillis);
         }
 
         if (currentMillis - testTimer >= 300)

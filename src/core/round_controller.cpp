@@ -24,6 +24,9 @@ static volatile State currentState = STANDBY;
 static unsigned long delayEndTime = 0;
 static unsigned long countdownId = 0;
 static unsigned long falseStartStartedAt = 0;
+static int preparationDelaySeconds = 0;
+static unsigned long randomDelayStartTime = 0;
+static unsigned long lastPrepDispUpdate = 0;
 
 // --- Input cooldown (prevents contact-bounce double-clicks) ---
 static unsigned long inputCooldownUntil = 0;
@@ -129,6 +132,8 @@ static void resetToStandby()
   resetLongHandled = false;
   currentRoundIsSoloTraining = false;
   confirmationFailed = false;
+  randomDelayStartTime = 0;
+  lastPrepDispUpdate = 0;
 
   btnStart->wasPressed();
   btnStart->wasReleased();
@@ -210,7 +215,7 @@ static void updateFinishedDisplay()
   if (roundMode == 2)
   {
     // Reaction Drill Mode result
-    int hitTgt = (recordedHitCount > 0) ? recordedHits[0].targetId : 0;
+    int hitTgt = (recordedHitCount > 0) ? recordedHits[0].targetId : -1;
     displayUpdateReaction(timeStr, hitTgt);
     return;
   }
@@ -242,11 +247,16 @@ static void updateFinishedDisplay()
 
 static int calculateMissedTargets()
 {
+  if (menuGetRoundMode() == 2)
+  {
+    return 0;
+  }
+
   bool hitMask[MAX_TARGETS] = {};
   for (int targetIndex = 0; targetIndex < MAX_TARGETS; targetIndex++)
     hitMask[targetIndex] = sensorIsrWasHit(targetIndex);
 
-  return scoringRulesCalculateMissedTargets(menuGetTargetCount(), hitMask);
+  return scoringRulesCalculateMissedTargets(menuGetTargetCount(), hitMask, menuGetRoundMode());
 }
 
 static void finishRound(unsigned long totalTimeMs, const char *reason, unsigned long currentMillis, int missedTargets)
@@ -450,19 +460,43 @@ static void handleStandbyInput(unsigned long currentMillis, bool startPressed)
       return;
     }
     networkSendEvent("start_pressed", -1, 0);
-    unsigned long delayMs = esp_random() % (START_DELAY_MAX_MS - START_DELAY_MIN_MS) + START_DELAY_MIN_MS;
+    unsigned long randomDelayMs = esp_random() % (START_DELAY_MAX_MS - START_DELAY_MIN_MS) + START_DELAY_MIN_MS;
+    unsigned long prepDelayMs = static_cast<unsigned long>(preparationDelaySeconds) * 1000UL;
     countdownId = roundStateNextCountdownId(countdownId);
-    delayEndTime = currentMillis + delayMs;
-    Serial.print("[BTN] Start pressed. Delaying for ");
-    Serial.print(delayMs);
-    Serial.println(" ms...");
+    if (preparationDelaySeconds > 0)
+    {
+      randomDelayStartTime = currentMillis + prepDelayMs;
+      delayEndTime = randomDelayStartTime + randomDelayMs;
+    }
+    else
+    {
+      randomDelayStartTime = 0;
+      delayEndTime = currentMillis + randomDelayMs;
+    }
+    lastPrepDispUpdate = currentMillis;
+    Serial.print("[BTN] Start pressed. Total delay: ");
+    Serial.print(prepDelayMs + randomDelayMs);
+    Serial.print(" ms (Prep: ");
+    Serial.print(prepDelayMs);
+    Serial.print(" ms, Random: ");
+    Serial.print(randomDelayMs);
+    Serial.println(" ms)...");
 
     ledRedSet(true);
     sensorIsrReset();
     sensorIsrEnable(true);
     sensorIsrSetRunning(true);
     currentState = DELAY;
-    displayUpdate(STR_PREPARE, STR_WAIT_FOR_BEEP);
+    if (preparationDelaySeconds > 0)
+    {
+      char prepStr[24];
+      snprintf(prepStr, sizeof(prepStr), STR_PREP_COUNTDOWN_FORMAT, preparationDelaySeconds);
+      displayUpdate(STR_PREPARE, prepStr);
+    }
+    else
+    {
+      displayUpdate(STR_PREPARE, STR_WAIT_FOR_BEEP);
+    }
   }
 }
 
@@ -487,6 +521,9 @@ void roundControllerInit(HwButtons& buttons)
   menuSetRequireAllTargets(requireAll);
 
   screensaverTimeoutMinutes = storageLoadScreensaverTimeout();
+
+  preparationDelaySeconds = storageLoadPreparationDelay();
+  menuSetPreparationDelay(preparationDelaySeconds);
 
   int lang = storageLoadLanguage();
   menuSetLanguage(lang == 1 ? Language::EN : Language::DE);
@@ -570,8 +607,14 @@ void roundControllerTick(unsigned long currentMillis)
     return;
   }
 
-  if (currentMillis < inputCooldownUntil)
-    return;
+  if (inputCooldownUntil != 0)
+  {
+    if (static_cast<long>(inputCooldownUntil - currentMillis) > 0)
+    {
+      return;
+    }
+    inputCooldownUntil = 0;
+  }
 
   bool startPressed = btnStart->wasPressed();
   bool stopPressed = btnStop->wasPressed();
@@ -586,7 +629,7 @@ void roundControllerTick(unsigned long currentMillis)
   }
   else
   {
-    remoteInputReceived = remoteControlTakeCommand(remoteCommand);
+    remoteInputReceived = remoteControlTakeCommand(remoteCommand, currentMillis, currentState, countdownId);
   }
 
   if (hardwareInputReceived || remoteInputReceived)
@@ -613,6 +656,12 @@ void roundControllerTick(unsigned long currentMillis)
       inputCooldownUntil = currentMillis + INPUT_COOLDOWN_MS;
       return;
     }
+    if (remoteCommand.action == RemoteControlAction::SetPrepDelay)
+    {
+      roundControllerSetPreparationDelay(remoteCommand.value);
+      inputCooldownUntil = currentMillis + INPUT_COOLDOWN_MS;
+      return;
+    }
     if (remoteCommand.action == RemoteControlAction::Start)
     {
       if (currentState == STANDBY)
@@ -621,6 +670,7 @@ void roundControllerTick(unsigned long currentMillis)
       }
       else if (currentState == FINISHED)
       {
+        if (!currentRoundIsSoloTraining) { return; }
         resetToStandby();
         handleStandbyInput(currentMillis, true);
         inputCooldownUntil = currentMillis + INPUT_COOLDOWN_MS;
@@ -643,6 +693,7 @@ void roundControllerTick(unsigned long currentMillis)
     {
       if (currentState == FINISHED)
       {
+        if (!currentRoundIsSoloTraining) { return; }
         resetToStandby();
         networkSendEvent("reset", -1, 0);
         inputCooldownUntil = currentMillis + INPUT_COOLDOWN_MS;
@@ -708,18 +759,47 @@ void roundControllerTick(unsigned long currentMillis)
       return;
     }
 
-    // False start detection: early sensor hit before beep
-    int falseStartTarget = -1;
-    unsigned long falseStartTime = 0;
-    if (sensorIsrPopNextHit(falseStartTarget, falseStartTime))
+    uint32_t prepRemainingMs = roundStateGetPrepDelayRemainingMs(currentState, randomDelayStartTime, currentMillis);
+    if (prepRemainingMs > 0)
     {
-      sensorIsrDisable();
-      buzzerPlay(BuzzerPattern::DoubleShort, currentMillis);
-      displayUpdate(STR_FALSE_START, STR_FALSE_START_HINT);
-      Serial.println("[ROUND] False start detected!");
-      falseStartStartedAt = currentMillis;
-      currentState = roundStateOnFalseStart(currentState);
-      return;
+      int discardedTarget = -1;
+      unsigned long discardedTime = 0;
+      while (sensorIsrPopNextHit(discardedTarget, discardedTime))
+      {
+        // Spurious hits discarded during preparation delay
+      }
+
+      if (currentMillis - lastPrepDispUpdate >= 250)
+      {
+        lastPrepDispUpdate = currentMillis;
+        uint32_t prepSecsLeft = (prepRemainingMs + 999) / 1000;
+        char prepStr[24];
+        snprintf(prepStr, sizeof(prepStr), STR_PREP_COUNTDOWN_FORMAT, static_cast<int>(prepSecsLeft));
+        displayUpdate(STR_PREPARE, prepStr);
+      }
+    }
+    else
+    {
+      if (randomDelayStartTime != 0)
+      {
+        sensorIsrReset();
+        randomDelayStartTime = 0;
+        displayUpdate(STR_PREPARE, STR_WAIT_FOR_BEEP);
+      }
+
+      // False start detection: early sensor hit before beep
+      int falseStartTarget = -1;
+      unsigned long falseStartTime = 0;
+      if (sensorIsrPopNextHit(falseStartTarget, falseStartTime))
+      {
+        sensorIsrDisable();
+        buzzerPlay(BuzzerPattern::DoubleShort, currentMillis);
+        displayUpdate(STR_FALSE_START, STR_FALSE_START_HINT);
+        Serial.println("[ROUND] False start detected!");
+        falseStartStartedAt = currentMillis;
+        currentState = roundStateOnFalseStart(currentState);
+        return;
+      }
     }
 
     if (roundStateGetStartDelayRemainingMs(currentState, delayEndTime, currentMillis) == 0)
@@ -776,13 +856,18 @@ void roundControllerTick(unsigned long currentMillis)
     if (menuGetRoundMode() == 2)
     {
       // Reaction Drill: First hit on any target ends the drill immediately
+      if (recordedHitCount > 0)
+      {
+        finishRound(recordedHits[0].splitTime, "Reaction Hit", currentMillis, 0);
+        return;
+      }
       for (int i = 0; i < MAX_TARGETS; i++)
       {
         if (sensorIsrWasHit(i))
         {
           unsigned long lastStop = getLastStopPlateTime();
           unsigned long elapsed = currentMillis - startTime;
-          unsigned long finalTime = (recordedHitCount > 0) ? recordedHits[0].splitTime : ((lastStop > 0) ? lastStop : elapsed);
+          unsigned long finalTime = (lastStop > 0) ? lastStop : elapsed;
           finishRound(finalTime, "Reaction Hit", currentMillis, 0);
           return;
         }
@@ -863,7 +948,7 @@ void roundControllerTick(unsigned long currentMillis)
         resetHoldActive = false;
         resetToStandby();
         networkSendEvent("reset", -1, 0);
-        buzzerPlay(BuzzerPattern::Start, currentMillis);
+        buzzerPlay(BuzzerPattern::Confirm, currentMillis);
         Serial.println("[BTN] Reset button held (Long Press) - Round Reset");
         inputCooldownUntil = currentMillis + INPUT_COOLDOWN_MS;
         return;
@@ -950,6 +1035,10 @@ void roundControllerTick(unsigned long currentMillis)
       {
         stopLongHandled = true;
         stopHoldActive = false;
+        if (menuGetRoundMode() == 2)
+        {
+          return;
+        }
         int minPenalty = menuGetRequireAllTargets() ? 0 : calculateMissedTargets();
         penaltyCount = minPenalty;
         unsigned long calcTime = baseEndTime + (unsigned long)penaltyCount * 3000;
@@ -971,6 +1060,10 @@ void roundControllerTick(unsigned long currentMillis)
     if (btnStop->wasReleased() && !stopLongHandled && stopHoldActive)
     {
       stopHoldActive = false;
+      if (menuGetRoundMode() == 2)
+      {
+        return;
+      }
       int minPenalty = menuGetRequireAllTargets() ? 0 : calculateMissedTargets();
       penaltyCount++;
       if (penaltyCount > 10)
@@ -1043,7 +1136,7 @@ unsigned long roundControllerGetElapsedMs(unsigned long currentMillis)
         return lastStop;
       }
     }
-    return currentMillis >= startTime ? (currentMillis - startTime) : 0;
+    return static_cast<long>(currentMillis - startTime) >= 0 ? (currentMillis - startTime) : 0;
   }
   else if (currentState == FINISHED)
   {
@@ -1069,6 +1162,32 @@ unsigned long roundControllerGetStartDelayRemainingMs(unsigned long currentMilli
   }
 
   return roundStateGetStartDelayRemainingMs(currentState, delayEndTime, currentMillis);
+}
+
+int roundControllerGetPreparationDelay()
+{
+  return preparationDelaySeconds;
+}
+
+bool roundControllerSetPreparationDelay(int seconds)
+{
+  if ((currentState != STANDBY && currentState != MENU) || seconds < 0 || seconds > 30)
+  {
+    return false;
+  }
+  preparationDelaySeconds = seconds;
+  menuSetPreparationDelay(seconds);
+  storageSavePreparationDelay(seconds);
+  return true;
+}
+
+unsigned long roundControllerGetPrepDelayRemainingMs(unsigned long currentMillis)
+{
+  if (currentState != DELAY || randomDelayStartTime == 0)
+  {
+    return 0;
+  }
+  return roundStateGetPrepDelayRemainingMs(currentState, randomDelayStartTime, currentMillis);
 }
 
 int roundControllerGetPenaltyCount()

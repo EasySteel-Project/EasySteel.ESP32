@@ -103,6 +103,25 @@ void test_storage_round_mode(void) {
     TEST_ASSERT_FALSE(storageLoadRequireAllTargets());
 }
 
+void test_storage_preparation_delay(void) {
+    TEST_ASSERT_EQUAL(0, storageLoadPreparationDelay()); // Default 0 (disabled)
+
+    storageSavePreparationDelay(10);
+    TEST_ASSERT_EQUAL(10, storageLoadPreparationDelay());
+
+    storageSavePreparationDelay(30);
+    TEST_ASSERT_EQUAL(30, storageLoadPreparationDelay());
+
+    storageSavePreparationDelay(0);
+    TEST_ASSERT_EQUAL(0, storageLoadPreparationDelay());
+
+    storageSavePreparationDelay(-5); // clamped to 0
+    TEST_ASSERT_EQUAL(0, storageLoadPreparationDelay());
+
+    storageSavePreparationDelay(50); // clamped to 30
+    TEST_ASSERT_EQUAL(30, storageLoadPreparationDelay());
+}
+
 int main(int argc, char **argv) {
     UNITY_BEGIN();
     RUN_TEST(test_storage_wifi_save_and_load);
@@ -114,5 +133,6 @@ int main(int argc, char **argv) {
     RUN_TEST(test_storage_round_mode);
     RUN_TEST(test_storage_screensaver_timeout);
     RUN_TEST(test_storage_language);
+    RUN_TEST(test_storage_preparation_delay);
     return UNITY_END();
 }

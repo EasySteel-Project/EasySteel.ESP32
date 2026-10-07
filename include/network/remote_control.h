@@ -29,7 +29,8 @@ enum class RemoteControlAction
   Start,
   Stop,
   Reset,
-  SetMode
+  SetMode,
+  SetPrepDelay
 };
 
 struct RemoteControlCommand
@@ -76,10 +77,22 @@ bool remoteControlIsPcConnected();
 bool remoteControlActionAllowed(RemoteControlAction action, State state, int value = 0);
 
 /// Queue one authorized command for the round controller.
-bool remoteControlQueueCommand(RemoteControlAction action, int value = 0);
+bool remoteControlQueueCommand(RemoteControlAction action, int value = 0,
+  unsigned long currentMillis = 0, State expectedState = STANDBY, unsigned long countdownId = 0);
 
 /// Consume the pending command exactly once.
-bool remoteControlTakeCommand(RemoteControlCommand &command);
+bool remoteControlTakeCommand(RemoteControlCommand &command, unsigned long currentMillis = 0,
+  State state = STANDBY, unsigned long countdownId = 0);
 
 /// Discard any pending mobile command, for example when hardware input wins.
 void remoteControlClearPendingCommand();
+
+/// Copy the token into a loop-owned snapshot; never expose it in public HTTP output.
+void remoteControlCopySessionToken(char *out, size_t capacity);
+
+/// Monotonic loop-owned revocation epoch for requests queued before physical input.
+unsigned long remoteControlGetCommandEpoch();
+
+/// Check that a command still belongs to the state and countdown which accepted it.
+bool remoteControlCommandStillValid(RemoteControlAction action, State expectedState,
+  State state, unsigned long expectedCountdown, unsigned long countdownId, int value = 0);

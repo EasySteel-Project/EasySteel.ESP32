@@ -712,9 +712,10 @@ void displayUpdateMenuList(const char *headerTitle, const char *const *items, in
   // Previous item at y = 23
   if (selectedIndex > 0 && selectedIndex - 1 < itemCount)
   {
-    oled.setCursor(8, 23);
+    // Use the left margin for long items to leave room for the navigation glyph.
+    oled.setCursor(strlen(items[selectedIndex - 1]) > 18 ? 2 : 8, 23);
     char buf[20];
-    snprintf(buf, sizeof(buf), "%.18s", items[selectedIndex - 1]);
+    snprintf(buf, sizeof(buf), "%.19s", items[selectedIndex - 1]);
     oled.print(buf);
     oled.setCursor(120, 23);
     oled.print(STR_MENU_PREVIOUS_GLYPH);
@@ -737,9 +738,9 @@ void displayUpdateMenuList(const char *headerTitle, const char *const *items, in
   // Next item at y = 43
   if (selectedIndex + 1 < itemCount)
   {
-    oled.setCursor(8, 43);
+    oled.setCursor(strlen(items[selectedIndex + 1]) > 18 ? 2 : 8, 43);
     char buf[20];
-    snprintf(buf, sizeof(buf), "%.18s", items[selectedIndex + 1]);
+    snprintf(buf, sizeof(buf), "%.19s", items[selectedIndex + 1]);
     oled.print(buf);
     oled.setCursor(120, 43);
     oled.print(STR_MENU_NEXT_GLYPH);

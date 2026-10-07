@@ -108,6 +108,7 @@ struct DisplayStrings
   const char *modeCompetition;
   const char *modeAllTargets;
   const char *modeReaction;
+  const char *prepDelay;
   const char *screensaver;
   const char *timeoutOff;
   const char *language;
@@ -117,6 +118,9 @@ struct DisplayStrings
   const char *titleGameMode;
   const char *paramMode;
   const char *hintGameMode;
+  const char *titlePrepDelay;
+  const char *paramPrepDelay;
+  const char *hintPrepDelay;
   const char *titleScreensaver;
   const char *paramScreensaver;
   const char *hintScreensaver;
@@ -128,6 +132,8 @@ struct DisplayStrings
   const char *valueIntFormat;
   const char *valueTextFormat;
   const char *valueMinutesFormat;
+  const char *valueSecondsFormat;
+  const char *prepCountdownFormat;
 
   // --- Hardware Test ---
   const char *testSensors;
@@ -231,6 +237,7 @@ struct WebStrings
   const char *webDeviceName;
   const char *webIp;
   const char *webPort;
+  const char *webPrepDelay;
   const char *webServerIpPlaceholder;
   const char *webSaveSettings;
   const char *webFirmwareUpdate;
@@ -260,6 +267,7 @@ struct WebStrings
   const char *webOtaFlashing;
   const char *webApiStateOverflow;
   const char *webApiInvalidJson;
+  const char *webApiInvalidServerIp;
   const char *webApiPairingAttempts;
   const char *webApiInvalidPin;
   const char *webApiPairingInactive;
@@ -295,6 +303,10 @@ struct WebStrings
   const char *trainingStageThePendulum;
   const char *trainingStageSpeedOption;
   const char *trainingStageRoundabout;
+  const char *trainingPrepDelay;
+  const char *trainingPrepDelayHint;
+  const char *trainingPrepDelayOff;
+  const char *trainingPrepare;
   const char *trainingHistoryLocal;
   const char *trainingRuns;
   const char *trainingAll;
@@ -325,6 +337,7 @@ struct WebStrings
   const char *trainingPenaltyLabel;
   const char *trainingTargetLabel;
   const char *trainingMissAbbreviation;
+  const char *trainingDisconnect;
 };
 
 const DisplayStrings &i18n();

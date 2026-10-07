@@ -56,6 +56,15 @@ unsigned long roundControllerGetCountdownId();
 /// Get milliseconds remaining until the authoritative ESP32 start signal.
 unsigned long roundControllerGetStartDelayRemainingMs(unsigned long currentMillis);
 
+/// Get the configured preparation delay in seconds (0 = disabled, just random timer).
+int roundControllerGetPreparationDelay();
+
+/// Set the configured preparation delay in seconds (0..30). Returns true on success.
+bool roundControllerSetPreparationDelay(int seconds);
+
+/// Get milliseconds remaining of the preparation delay before the random window begins.
+unsigned long roundControllerGetPrepDelayRemainingMs(unsigned long currentMillis);
+
 /// Get current penalty count in FINISHED state.
 int roundControllerGetPenaltyCount();
 

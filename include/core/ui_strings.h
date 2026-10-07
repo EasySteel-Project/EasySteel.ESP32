@@ -98,6 +98,7 @@
 #define STR_MODE_COMPETITION i18n().modeCompetition
 #define STR_MODE_ALL_TARGETS i18n().modeAllTargets
 #define STR_MODE_REACTION i18n().modeReaction
+#define STR_PREP_DELAY i18n().prepDelay
 #define STR_SCREENSAVER i18n().screensaver
 #define STR_TIMEOUT_OFF i18n().timeoutOff
 #define STR_LANGUAGE i18n().language
@@ -107,6 +108,9 @@
 #define STR_TITLE_GAME_MODE i18n().titleGameMode
 #define STR_PARAM_MODE i18n().paramMode
 #define STR_HINT_GAME_MODE i18n().hintGameMode
+#define STR_TITLE_PREP_DELAY i18n().titlePrepDelay
+#define STR_PARAM_PREP_DELAY i18n().paramPrepDelay
+#define STR_HINT_PREP_DELAY i18n().hintPrepDelay
 #define STR_TITLE_SCREENSAVER i18n().titleScreensaver
 #define STR_PARAM_SCREENSAVER i18n().paramScreensaver
 #define STR_HINT_SCREENSAVER i18n().hintScreensaver
@@ -118,6 +122,8 @@
 #define STR_VALUE_INT_FORMAT i18n().valueIntFormat
 #define STR_VALUE_TEXT_FORMAT i18n().valueTextFormat
 #define STR_VALUE_MINUTES_FORMAT i18n().valueMinutesFormat
+#define STR_VALUE_SECONDS_FORMAT i18n().valueSecondsFormat
+#define STR_PREP_COUNTDOWN_FORMAT i18n().prepCountdownFormat
 
 // --- Hardware Test ---
 #define STR_TEST_SENSORS i18n().testSensors
@@ -218,6 +224,7 @@
 #define STR_WEB_DEVICE_NAME i18nWeb().webDeviceName
 #define STR_WEB_IP i18nWeb().webIp
 #define STR_WEB_PORT i18nWeb().webPort
+#define STR_WEB_PREP_DELAY i18nWeb().webPrepDelay
 #define STR_WEB_SERVER_IP_PLACEHOLDER i18nWeb().webServerIpPlaceholder
 #define STR_WEB_SAVE_SETTINGS i18nWeb().webSaveSettings
 #define STR_WEB_FIRMWARE_UPDATE i18nWeb().webFirmwareUpdate
@@ -247,6 +254,7 @@
 #define STR_WEB_OTA_FLASHING i18nWeb().webOtaFlashing
 #define STR_WEB_API_STATE_OVERFLOW i18nWeb().webApiStateOverflow
 #define STR_WEB_API_INVALID_JSON i18nWeb().webApiInvalidJson
+#define STR_WEB_API_INVALID_SERVER_IP i18nWeb().webApiInvalidServerIp
 #define STR_WEB_API_PAIRING_ATTEMPTS i18nWeb().webApiPairingAttempts
 #define STR_WEB_API_INVALID_PIN i18nWeb().webApiInvalidPin
 #define STR_WEB_API_PAIRING_INACTIVE i18nWeb().webApiPairingInactive
@@ -282,6 +290,10 @@
 #define STR_TRAINING_STAGE_THE_PENDULUM i18nWeb().trainingStageThePendulum
 #define STR_TRAINING_STAGE_SPEED_OPTION i18nWeb().trainingStageSpeedOption
 #define STR_TRAINING_STAGE_ROUNDABOUT i18nWeb().trainingStageRoundabout
+#define STR_TRAINING_PREP_DELAY i18nWeb().trainingPrepDelay
+#define STR_TRAINING_PREP_DELAY_HINT i18nWeb().trainingPrepDelayHint
+#define STR_TRAINING_PREP_DELAY_OFF i18nWeb().trainingPrepDelayOff
+#define STR_TRAINING_PREPARE i18nWeb().trainingPrepare
 #define STR_TRAINING_HISTORY_LOCAL i18nWeb().trainingHistoryLocal
 #define STR_TRAINING_RUNS i18nWeb().trainingRuns
 #define STR_TRAINING_ALL i18nWeb().trainingAll
@@ -312,3 +324,4 @@
 #define STR_TRAINING_PENALTY_LABEL i18nWeb().trainingPenaltyLabel
 #define STR_TRAINING_TARGET_LABEL i18nWeb().trainingTargetLabel
 #define STR_TRAINING_MISS_ABBREVIATION i18nWeb().trainingMissAbbreviation
+#define STR_TRAINING_DISCONNECT i18nWeb().trainingDisconnect

@@ -17,13 +17,6 @@ body:
     validations:
       required: true
   - type: textarea
-    id: authority
-    attributes:
-      label: Device authority impact
-      description: Explain why the proposal does not let a desktop or network peer override the device-owned round lifecycle.
-    validations:
-      required: true
-  - type: textarea
     id: alternatives
     attributes:
       label: Alternatives considered

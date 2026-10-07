@@ -32,6 +32,11 @@ int menuGetRoundMode();
 /// Set the active round mode.
 void menuSetRoundMode(int mode);
 
+/// Get the configured preparation delay in seconds (0..30).
+int menuGetPreparationDelay();
+
+/// Set the preparation delay in seconds.
+void menuSetPreparationDelay(int seconds);
 
 /// Get the configured screensaver timeout in minutes.
 int menuGetScreensaverTimeout();

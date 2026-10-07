@@ -7,7 +7,6 @@ static uint8_t currentStepCount = 0;
 static uint8_t currentStepIndex = 0;
 
 static const uint16_t START_STEPS[] = { 1000 };
-static const uint16_t CONFIRM_STEPS[] = { 150 };
 static const uint16_t DOUBLE_SHORT_STEPS[] = { 50, 50, 50 };
 static const uint16_t SINGLE_SHORT_STEPS[] = { 30 };
 static const uint16_t STARTUP_MELODY_STEPS[] = { 100, 50, 100, 50, 100, 150, 250, 150, 100, 50, 350 };
@@ -60,9 +59,6 @@ void buzzerPlay(BuzzerPattern pattern, unsigned long currentMillis)
       custom.stepCount = sizeof(START_STEPS) / sizeof(START_STEPS[0]);
       break;
     case BuzzerPattern::Confirm:
-      custom.steps = CONFIRM_STEPS;
-      custom.stepCount = sizeof(CONFIRM_STEPS) / sizeof(CONFIRM_STEPS[0]);
-      break;
     case BuzzerPattern::DoubleShort:
       custom.steps = DOUBLE_SHORT_STEPS;
       custom.stepCount = sizeof(DOUBLE_SHORT_STEPS) / sizeof(DOUBLE_SHORT_STEPS[0]);

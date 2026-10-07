@@ -101,8 +101,16 @@ const char WIFI_SETUP_PAGE[] PROGMEM = R"rawliteral(
       const sel = document.getElementById('ssid-select');
       sel.innerHTML = '<option value="">' + TEXT.scanningNetworks + '</option>';
       fetch('/scan-wifi')
-        .then(r => r.json())
+        .then(r => {
+          if (r.status === 202) {
+            setTimeout(doScan, 500);
+            return null;
+          }
+          if (!r.ok) throw new Error();
+          return r.json();
+        })
         .then(nets => {
+          if (nets === null) return;
           if (!nets || nets.length === 0) {
             sel.innerHTML = '<option value="">' + TEXT.noNetworks + '</option>';
             return;
@@ -281,6 +289,8 @@ const char SETTINGS_PAGE[] PROGMEM = R"rawliteral(
       <input type="text" id="serverIp" name="serverIp" value="%SERVER_IP%" placeholder="%WEB_SERVER_IP_PLACEHOLDER%" autocomplete="off">
       <label for="port">%WEB_TCP_PORT%</label>
       <input type="text" id="port" name="port" value="%TCP_PORT%" autocomplete="off">
+      <label for="delay">%WEB_PREP_DELAY% (0-30s)</label>
+      <input type="text" id="delay" name="delay" value="%PREP_DELAY%" autocomplete="off">
       <button type="submit">%WEB_SAVE_SETTINGS%</button>
     </form>
     <div class="info">
@@ -322,7 +332,7 @@ const char SETTINGS_PAGE[] PROGMEM = R"rawliteral(
       percentUnit: '%WEB_PERCENT_UNIT%'
     };
 
-    function uploadFirmware(file) {
+    async function uploadFirmware(file) {
       if (!file) return;
       if (!confirm(TEXT.installFirmwarePrefix + file.name + TEXT.installFirmwareSuffix)) return;
       const fd = new FormData();
@@ -333,8 +343,23 @@ const char SETTINGS_PAGE[] PROGMEM = R"rawliteral(
       pWrap.style.display = 'block';
       pTxt.innerText = TEXT.uploadRunning;
 
+      let lease;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 4000);
+      try {
+        const response = await fetch('/update/prepare', {method: 'POST', signal: controller.signal});
+        if (!response.ok) throw new Error();
+        lease = (await response.json()).lease;
+      } catch (_) {
+        pTxt.innerText = TEXT.errorPrefix + TEXT.connectionInterrupted;
+        return;
+      } finally {
+        clearTimeout(timer);
+      }
       const xhr = new XMLHttpRequest();
       xhr.open('POST', '/update', true);
+      xhr.setRequestHeader('X-EasySteel-Update', lease);
+      xhr.timeout = 120000;
       xhr.upload.onprogress = function(e) {
         if (e.lengthComputable) {
           const pct = Math.round((e.loaded / e.total) * 100);
@@ -353,7 +378,7 @@ const char SETTINGS_PAGE[] PROGMEM = R"rawliteral(
           pTxt.innerText = TEXT.errorPrefix + xhr.responseText;
         }
       };
-      xhr.onerror = function() {
+      xhr.onerror = xhr.ontimeout = function() {
         pBar.style.background = '#e94560';
         pTxt.innerText = TEXT.connectionInterrupted;
       };

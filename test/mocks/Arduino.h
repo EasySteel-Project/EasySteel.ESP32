@@ -22,8 +22,10 @@
 #endif
 
 inline int digitalPinToInterrupt(int pin) { return pin; }
-inline void attachInterrupt(int pin, void (*voidFunc)(void), int mode) {}
-inline void detachInterrupt(int pin) {}
+extern unsigned int g_mockAttachInterruptCalls;
+extern unsigned int g_mockDetachInterruptCalls;
+inline void attachInterrupt(int pin, void (*voidFunc)(void), int mode) { ++g_mockAttachInterruptCalls; }
+inline void detachInterrupt(int pin) { ++g_mockDetachInterruptCalls; }
 
 // Fake Millis/Micros and Pin state for Mocking
 extern unsigned long g_mockMillis;

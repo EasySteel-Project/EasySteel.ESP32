@@ -14,9 +14,12 @@ void test_i18n_default_language_is_de(void) {
     TEST_ASSERT_EQUAL((int)Language::DE, (int)i18nGetLanguage());
     TEST_ASSERT_EQUAL_STRING("de", i18nGetLanguageCode());
     TEST_ASSERT_EQUAL_STRING("Deutsch", i18nGetLanguageName());
-    TEST_ASSERT_EQUAL_STRING("Bereit", i18n().ready);
+    TEST_ASSERT_EQUAL_STRING("Ready", i18n().ready);
     TEST_ASSERT_EQUAL_STRING("STANDBY", i18n().prepare);
     TEST_ASSERT_EQUAL_STRING("Stop plate treffen", i18n().drillHint);
+    TEST_ASSERT_EQUAL_STRING("Vorlaufzeit", i18n().prepDelay);
+    TEST_ASSERT_EQUAL_STRING("Vorlaufzeit (0-30s)", i18nWeb().webPrepDelay);
+    TEST_ASSERT_EQUAL_STRING("Abmelden", i18nWeb().trainingDisconnect);
 }
 
 void test_i18n_switch_to_en(void) {
@@ -27,10 +30,13 @@ void test_i18n_switch_to_en(void) {
     TEST_ASSERT_EQUAL_STRING("Ready", i18n().ready);
     TEST_ASSERT_EQUAL_STRING("STANDBY", i18n().prepare);
     TEST_ASSERT_EQUAL_STRING("Hit Stop plate", i18n().drillHint);
+    TEST_ASSERT_EQUAL_STRING("Prep Delay", i18n().prepDelay);
+    TEST_ASSERT_EQUAL_STRING("Prep Delay (0-30s)", i18nWeb().webPrepDelay);
     TEST_ASSERT_EQUAL_STRING("START", i18nWeb().trainingStart);
     TEST_ASSERT_EQUAL_STRING("Start Countdown", i18nWeb().trainingCountdownStart);
     TEST_ASSERT_EQUAL_STRING("Stage", i18nWeb().trainingStage);
     TEST_ASSERT_EQUAL_STRING("Saved on this phone only", i18nWeb().trainingLocalOnly);
+    TEST_ASSERT_EQUAL_STRING("Disconnect", i18nWeb().trainingDisconnect);
 }
 
 void test_i18n_shooting_sports_terminology_preserved(void) {
@@ -93,6 +99,10 @@ void test_i18n_display_strings_max_length_de(void) {
     TEST_ASSERT_TRUE(strlen(d.footerReaction) <= 21);
     TEST_ASSERT_TRUE(strlen(d.catTargets) <= 21);
     TEST_ASSERT_TRUE(strlen(d.catPhoneTraining) <= 21);
+    TEST_ASSERT_TRUE(strlen(d.prepDelay) <= 21);
+    TEST_ASSERT_TRUE(strlen(d.titlePrepDelay) <= 21);
+    TEST_ASSERT_TRUE(strlen(d.paramPrepDelay) <= 21);
+    TEST_ASSERT_TRUE(strlen(d.hintPrepDelay) <= 21);
 }
 
 void test_i18n_display_strings_max_length_en(void) {
@@ -118,6 +128,10 @@ void test_i18n_display_strings_max_length_en(void) {
     TEST_ASSERT_TRUE(strlen(d.footerReaction) <= 21);
     TEST_ASSERT_TRUE(strlen(d.catTargets) <= 21);
     TEST_ASSERT_TRUE(strlen(d.catPhoneTraining) <= 21);
+    TEST_ASSERT_TRUE(strlen(d.prepDelay) <= 21);
+    TEST_ASSERT_TRUE(strlen(d.titlePrepDelay) <= 21);
+    TEST_ASSERT_TRUE(strlen(d.paramPrepDelay) <= 21);
+    TEST_ASSERT_TRUE(strlen(d.hintPrepDelay) <= 21);
 }
 
 void test_outbox_messages_fit_the_display(void) {
@@ -138,6 +152,19 @@ void test_outbox_messages_fit_the_display(void) {
     }
 }
 
+void test_server_ipv4_address_fits_menu_without_truncation(void) {
+    const Language languages[] = {Language::DE, Language::EN};
+    for (Language language : languages) {
+        i18nSetLanguage(language);
+        char line[24];
+        snprintf(line, sizeof(line), i18n().networkServerFormat, "192.168.178.123");
+        TEST_ASSERT_EQUAL_STRING("Srv:192.168.178.123", line);
+        snprintf(line, sizeof(line), i18n().networkServerFormat, "255.255.255.255");
+        TEST_ASSERT_EQUAL_STRING("Srv:255.255.255.255", line);
+        TEST_ASSERT_TRUE(strlen(line) <= 19);
+    }
+}
+
 int main(int argc, char **argv) {
     UNITY_BEGIN();
     RUN_TEST(test_i18n_default_language_is_de);
@@ -147,5 +174,6 @@ int main(int argc, char **argv) {
     RUN_TEST(test_i18n_display_strings_max_length_de);
     RUN_TEST(test_i18n_display_strings_max_length_en);
     RUN_TEST(test_outbox_messages_fit_the_display);
+    RUN_TEST(test_server_ipv4_address_fits_menu_without_truncation);
     return UNITY_END();
 }

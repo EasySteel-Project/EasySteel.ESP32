@@ -1,6 +1,9 @@
 #include "config.h"
 #include "display.h"
 #include "network.h"
+#include "web_server.h"
+#include <esp_system.h>
+#include <esp_heap_caps.h>
 #include "round_controller.h"
 #include "ui_strings.h"
 #include "button.h"
@@ -41,6 +44,7 @@ static void heartbeatTick(unsigned long currentMillis)
 void setup()
 {
   Serial.begin(115200);
+  Serial.printf("[BOOT] Reset reason: %d\n", static_cast<int>(esp_reset_reason()));
   pinMode(LED_BUILTIN, OUTPUT);
 
   // Initialize Watchdog Timer (4 seconds, panic reset on timeout)
@@ -107,6 +111,26 @@ void loop()
 {
   unsigned long currentMillis = millis();
   watchdogFeed();
+  static unsigned long previousLoopUs = micros();
+  static unsigned long maximumLoopGapUs = 0;
+  static unsigned long lastDiagnosticsAt = 0;
+  unsigned long nowUs = micros();
+  unsigned long gapUs = nowUs - previousLoopUs;
+  previousLoopUs = nowUs;
+  if (gapUs > maximumLoopGapUs) { maximumLoopGapUs = gapUs; }
+  if (roundControllerIsIdle() && currentMillis - lastDiagnosticsAt >= 60000)
+  {
+    lastDiagnosticsAt = currentMillis;
+    Serial.printf("[HEALTH] loopGapMaxUs=%lu heap=%u largest=%u stackFreeBytes=%u\n",
+      maximumLoopGapUs, ESP.getFreeHeap(),
+      static_cast<unsigned int>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)),
+      static_cast<unsigned int>(uxTaskGetStackHighWaterMark(nullptr)));
+    maximumLoopGapUs = 0;
+  }
+
+  networkTick(currentMillis);
+  // Sample physical controls and advance the round using the time after network work.
+  currentMillis = millis();
 
   if (btnStart.update(currentMillis)) {
     Serial.printf("[BUTTON] Start state changed. IsDown: %d (GPIO: %d, PinVal: %d)\n", btnStart.isDown(), BTN_START_PIN, digitalRead(BTN_START_PIN));
@@ -119,17 +143,28 @@ void loop()
   }
 
   heartbeatTick(currentMillis);
-  networkTick(currentMillis);
+  if (webServerMaintenanceActive())
+  {
+    btnStart.wasPressed();
+    btnStop.wasPressed();
+    btnReset.wasPressed();
+    return;
+  }
 
   // Non-blocking input cooldown
-  if (currentMillis < mainCooldownUntil)
+  if (mainCooldownUntil != 0)
   {
-    return;
+    if (static_cast<long>(mainCooldownUntil - currentMillis) > 0)
+    {
+      return;
+    }
+    mainCooldownUntil = 0;
   }
 
   if (!provisioning)
   {
     roundControllerTick(currentMillis);
+    webServerPublishState();
   }
   else
   {

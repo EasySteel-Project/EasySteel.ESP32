@@ -3,11 +3,57 @@
 #include "tcp_outgoing_queue.h"
 #include "tcp_protocol.h"
 #include "tcp_line_framer.h"
+#include "tcp_connect_attempt.h"
 #include "round_controller.h"
 #include <WiFi.h>
 #include <esp_system.h>
 #include <lwip/sockets.h>
 #include <cerrno>
+#include <fcntl.h>
+
+struct ConnectSocket
+{
+  static int open(uint32_t address, uint16_t port)
+  {
+    const int fd = lwip_socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) { return -1; }
+    const int flags = lwip_fcntl(fd, F_GETFL, 0);
+    if (flags < 0 || lwip_fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0)
+    {
+      close(fd);
+      return -1;
+    }
+    sockaddr_in peer = {};
+    peer.sin_family = AF_INET;
+    peer.sin_addr.s_addr = address;
+    peer.sin_port = htons(port);
+    if (lwip_connect(fd, reinterpret_cast<sockaddr*>(&peer), sizeof(peer)) < 0 &&
+        errno != EINPROGRESS)
+    {
+      close(fd);
+      return -1;
+    }
+    return fd;
+  }
+
+  static int poll(int fd)
+  {
+    fd_set writable;
+    FD_ZERO(&writable);
+    FD_SET(fd, &writable);
+    timeval timeout = {};
+    const int ready = lwip_select(fd + 1, nullptr, &writable, nullptr, &timeout);
+    if (ready <= 0) { return ready; }
+    int error = 0;
+    socklen_t length = sizeof(error);
+    return lwip_getsockopt(fd, SOL_SOCKET, SO_ERROR, &error, &length) == 0 && error == 0
+      ? 1 : -1;
+  }
+
+  static void close(int fd) { lwip_close(fd); }
+};
+
+static TcpConnectAttempt<ConnectSocket> connectAttempt;
 
 static WiFiClient tcpClient;
 static unsigned long lastConnectAttemptMs = 0;
@@ -215,6 +261,7 @@ static void flushOneNonBlockingWrite(unsigned long currentMillis)
 
 void tcpClientInit()
 {
+  connectAttempt.cancel();
   lastConnectAttemptMs = 0;
   lastServerPingMs = 0;
   lastServerPingSequence = 0;
@@ -229,6 +276,7 @@ bool tcpClientIsConnected()
 
 void tcpClientDisconnect()
 {
+  connectAttempt.cancel();
   if (tcpClient)
     tcpClient.stop();
   resetPendingTransmission();
@@ -298,6 +346,7 @@ void tcpClientTick(
 {
   if (provisioning || serverIP.length() == 0 || WiFi.status() != WL_CONNECTED)
   {
+    connectAttempt.cancel();
     return;
   }
 
@@ -312,6 +361,26 @@ void tcpClientTick(
 
     if (!roundControllerIsIdle())
     {
+      connectAttempt.cancel();
+      return;
+    }
+
+    if (connectAttempt.pending())
+    {
+      const int connectedFd = connectAttempt.poll(currentMillis, true);
+      if (connectedFd >= 0)
+      {
+        // WiFiClient now owns the socket; reads and writes remain non-blocking.
+        tcpClient = WiFiClient(connectedFd);
+        Serial.println("Connected to server!");
+        protocolSessionState = ProtocolSessionState::AwaitingCapabilities;
+        connectedAtMs = currentMillis;
+        lastServerPingMs = currentMillis;
+        lastServerPingSequence = 0;
+        incomingFramer.reset();
+        resetPendingTransmission();
+        tcpClientSendEvent(chipId, deviceName, provisioning, "online", -1, 0);
+      }
       return;
     }
 
@@ -330,18 +399,14 @@ void tcpClientTick(
         Serial.println(tcpPort);
       }
 
-      if (tcpClient.connect(serverIP.c_str(), tcpPort, 150))
+      IPAddress address;
+      if (!address.fromString(serverIP))
       {
-        Serial.println("Connected to server!");
-        protocolSessionState = ProtocolSessionState::AwaitingCapabilities;
-        connectedAtMs = currentMillis;
-        lastServerPingMs = currentMillis;
-        lastServerPingSequence = 0;
-        incomingFramer.reset();
-        resetPendingTransmission();
-        tcpClientSendEvent(chipId, deviceName, provisioning, "online", -1, 0);
+        if (shouldLog) { Serial.println("[TCP] Invalid server IP; DNS lookup intentionally disabled"); }
+        return;
       }
-      else if (shouldLog)
+      connectAttempt.begin(static_cast<uint32_t>(address), tcpPort, currentMillis);
+      if (!connectAttempt.pending() && shouldLog)
       {
         Serial.println("Connection failed");
       }

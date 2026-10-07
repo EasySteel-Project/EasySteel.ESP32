@@ -193,7 +193,7 @@ bool offlineBufferPush(
   }
 
   BufferedRun run = {};
-  snprintf(run.runId, sizeof(run.runId), "%s", runId ? runId : "");
+  snprintf(run.runId, sizeof(run.runId), "%s", runId);
   snprintf(run.contextId, sizeof(run.contextId), "%s", contextId ? contextId : "");
   run.rawTimeMs = rawTimeMs;
   run.timeMs = timeMs;

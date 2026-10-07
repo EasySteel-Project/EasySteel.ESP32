@@ -8,12 +8,32 @@
 void onSensorHitIdx(int i);
 
 void setUp(void) {
+    sensorIsrDisable();
+    g_mockAttachInterruptCalls = 0;
+    g_mockDetachInterruptCalls = 0;
     g_mockMillis = 100;
     sensorIsrReset();
     sensorIsrResetLastAnyHitTime();
 }
 
 void tearDown(void) {}
+
+void test_interrupt_registration_is_idempotent_and_disable_before_enable_is_safe(void) {
+    sensorIsrDisable();
+    TEST_ASSERT_EQUAL_UINT(0, g_mockDetachInterruptCalls);
+    sensorIsrEnable(true);
+    sensorIsrEnable(false);
+    TEST_ASSERT_EQUAL_UINT(MAX_TARGETS, g_mockAttachInterruptCalls);
+    onSensorHitIdx(0);
+    TEST_ASSERT_FALSE(sensorIsrWasHit(0));
+    sensorIsrDisable();
+    sensorIsrDisable();
+    TEST_ASSERT_EQUAL_UINT(MAX_TARGETS, g_mockDetachInterruptCalls);
+    sensorIsrEnable(true);
+    TEST_ASSERT_EQUAL_UINT(2 * MAX_TARGETS, g_mockAttachInterruptCalls);
+    onSensorHitIdx(0);
+    TEST_ASSERT_TRUE(sensorIsrWasHit(0));
+}
 
 void test_isr_ignored_when_not_running(void) {
     sensorIsrSetRunning(false);
@@ -125,6 +145,7 @@ void test_sensor_pins_mapping_order(void) {
 
 int main(int argc, char **argv) {
     UNITY_BEGIN();
+    RUN_TEST(test_interrupt_registration_is_idempotent_and_disable_before_enable_is_safe);
     RUN_TEST(test_sensor_pins_mapping_order);
     RUN_TEST(test_isr_ignored_when_not_running);
     RUN_TEST(test_isr_valid_hit_when_running);

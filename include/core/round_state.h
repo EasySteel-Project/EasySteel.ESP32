@@ -26,3 +26,9 @@ uint32_t roundStateGetStartDelayRemainingMs(
   State currentState,
   uint32_t delayEndTime,
   uint32_t currentMillis);
+
+/// Return the rollover-safe remaining preparation delay in ms before the random window begins.
+uint32_t roundStateGetPrepDelayRemainingMs(
+  State currentState,
+  uint32_t randomDelayStartTime,
+  uint32_t currentMillis);

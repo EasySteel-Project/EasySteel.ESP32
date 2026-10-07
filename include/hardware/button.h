@@ -20,6 +20,9 @@ public:
   /// Returns true if the button transition from pressed to unpressed occurred since last check.
   bool wasReleased();
 
+  /// Consume the current press, including its hold and release events, until the next press.
+  void consumeCurrentPress();
+
   /// Returns true if the button is currently held down.
   bool isDown() const;
 
@@ -44,6 +47,7 @@ private:
 
   bool _wasPressed;
   bool _wasReleased;
+  bool _pressConsumed;
 
   unsigned long _pressStartTime;
 

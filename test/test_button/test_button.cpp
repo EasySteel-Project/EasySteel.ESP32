@@ -71,11 +71,46 @@ void test_button_release(void) {
     TEST_ASSERT_TRUE(btn.wasReleased());
 }
 
+void test_consumed_menu_entry_press_does_not_trigger_hold_or_release(void)
+{
+    Button btn(12, true, true);
+    btn.init();
+    g_mockPinState = LOW;
+    btn.update(10);
+    btn.update(70);
+    TEST_ASSERT_TRUE(btn.isHeldFor(1500, 1570));
+
+    btn.consumeCurrentPress();
+    TEST_ASSERT_TRUE(btn.isDown());
+    TEST_ASSERT_FALSE(btn.wasPressed());
+    TEST_ASSERT_FALSE(btn.isHeldFor(1000, 1571));
+    TEST_ASSERT_FALSE(btn.isHeldFor(1000, 5000));
+
+    g_mockPinState = HIGH;
+    btn.update(5010);
+    btn.update(5070);
+    TEST_ASSERT_FALSE(btn.isDown());
+    TEST_ASSERT_FALSE(btn.wasReleased());
+
+    // A fresh press must still support menu navigation and long-press exit.
+    g_mockPinState = LOW;
+    btn.update(5100);
+    btn.update(5160);
+    TEST_ASSERT_TRUE(btn.wasPressed());
+    TEST_ASSERT_FALSE(btn.isHeldFor(1000, 6159));
+    TEST_ASSERT_TRUE(btn.isHeldFor(1000, 6160));
+    g_mockPinState = HIGH;
+    btn.update(6200);
+    btn.update(6260);
+    TEST_ASSERT_TRUE(btn.wasReleased());
+}
+
 int main(int argc, char **argv) {
     UNITY_BEGIN();
     RUN_TEST(test_button_initial_state);
     RUN_TEST(test_button_press_and_debounce);
     RUN_TEST(test_button_long_press_held);
     RUN_TEST(test_button_release);
+    RUN_TEST(test_consumed_menu_entry_press_does_not_trigger_hold_or_release);
     return UNITY_END();
 }

@@ -62,12 +62,14 @@ stateDiagram-v2
 - Displays device / stage name, active round mode, ready status, and last round / reaction time. Network and IP diagnostics are available via the menu (**Menu → Network** / **Menu → Info**).
 - Start initiates a random countdown delay between 1.0 and 4.0 seconds.
 - A paired Solo Training phone may select the round mode or request Start. Start from `FINISHED` discards the pending official result and immediately begins the next local training run.
-- Holding Stop and Reset together for 1.5 seconds opens the configuration menu.
+- Holding Stop and Reset together for 1.5 seconds opens the configuration menu (Target count, Round mode, Preparation delay, Screensaver timeout, Language).
 - The screensaver dims the OLED after inactivity without disconnecting Wi-Fi or TCP.
 
 ### DELAY and FALSE_START
 
-- Target sensors are armed immediately upon entering `DELAY`.
+- Total delay comprises an optional configurable **Preparation Delay** (0–30 s, default disabled/0 s) followed by the standard random standby window (1.0–4.0 s).
+- During the Preparation Delay, the device display and phone dashboard count down remaining seconds ("Start in X s..."), and spurious target vibrations or movement are cleanly discarded so the shooter can assume the "Ready" position without risk of a false start.
+- When the preparation countdown reaches 0, the target sensors are cleanly reset and armed for the random standby window ("STANDBY / Wait for beep...").
 - Any sensor hit before the start beep triggers `FALSE_START`, plays an alert tone, and shows `FALSE START` on the display.
 - After 1.2 seconds, the device returns automatically to `STANDBY`.
 - Pressing Stop or Reset aborts the countdown; Reset also immediately terminates the false-start screen.
@@ -136,7 +138,7 @@ The default TCP port is `53421`. Event framing and delivery semantics are detail
 4. Exactly one phone receives a RAM-only session token. Dashboard polling renews the 30-second inactivity lease.
 5. Physical input clears any queued phone command. A desktop connection revokes the phone immediately; a new physical release is required after disconnect.
 
-The dashboard exposes Start in `STANDBY` and `FINISHED`, Stop in `DELAY` and `RUNNING`, Reset in `DELAY`, `RUNNING`, and `FINISHED`, and mode selection only in `STANDBY`. HTTP handlers validate and enqueue one bounded command; the normal round-controller tick performs the action. During `DELAY`, the ESP32 reports its stable countdown ID and remaining time. The phone keeps the normal 200 ms polling rate and continuously updates an EWMA estimate of half the HTTP round-trip time from every successful state response. Each `DELAY` response reschedules the enabled **Beep** with the latest estimate. Network asymmetry and browser scheduling may still introduce jitter, so the ESP32 buzzer defines the actual start signal.
+The dashboard exposes Start in `STANDBY` and `FINISHED`, Stop in `DELAY` and `RUNNING`, Reset in `DELAY`, `RUNNING`, and `FINISHED`, and mode selection as well as preparation delay only in `STANDBY`. HTTP handlers validate and enqueue one bounded command; the normal round-controller tick performs the action. During `DELAY`, the ESP32 reports its stable countdown ID, remaining preparation time, and start delay remaining. The phone keeps the normal 200 ms polling rate and continuously updates an EWMA estimate of half the HTTP round-trip time from every successful state response. Each `DELAY` response reschedules the enabled **Beep** with the latest estimate. Network asymmetry and browser scheduling may still introduce jitter, so the ESP32 buzzer defines the actual start signal.
 
 ### Transmission & Queue Reliability
 
@@ -188,7 +190,7 @@ Holding the Reset button for 2.0 seconds during boot clears Wi-Fi credentials on
 | `MENU_HOLD_MS` | 1,500 ms | `config.h` |
 | `WIFI_CONNECT_TIMEOUT_MS` | 4,000 ms | `config.h` |
 | Heartbeat Interval | 10,000 ms | [`tcp_client.cpp`](../src/network/tcp_client.cpp) |
-| Reconnect Retry | 15,000 ms | `tcp_client.cpp` |
+| Reconnect Retry | 3,000 ms, only in STANDBY; non-blocking attempt expires after 150 ms | `tcp_client.cpp` |
 
 ## 9. Build & Quality Assurance
 
@@ -205,3 +207,11 @@ Native test suites verify button debouncing, sensor ISR queueing, chronological 
 The outbox tests additionally inject failed writes/commits/reads, uncertain commit completion, corrupt snapshots, reboot before ACK cleanup, full capacity, and ring wrap. These host tests verify application recovery logic using an NVS test double; actual flash power-cut behavior and OLED rendering still require hardware qualification. Cut power before/during/after physical confirmation and ACK cleanup, then compare restored run IDs and payloads against RangeControl's durable records. Only a successful confirmation commit promises local retention; an interrupted/failed confirmation must not be reported as accepted.
 
 Compiled firmware binaries are output to `.pio/build/esp32dev/firmware.bin`.
+
+## Runtime verification after HTTP migration
+
+The firmware prints `[BOOT] Reset reason` and, while idle, periodic `[HEALTH]` diagnostics with maximum loop gap, free heap, largest free heap block, and loop stack high-water mark. These diagnostics support hardware investigation; a successful host test or firmware build does not establish timing or reset behavior on a physical ESP32.
+
+Before pilot use, exercise phone pairing and all actions, repeated page loads, slow and incomplete request bodies, background/sleep transitions, multiple browsers, and PC connection/revocation. Compare physical start-to-hit measurements with and without HTTP traffic. Verify browser and Arduino OTA success, rejection during an active round, interrupted uploads, reservation expiry, and subsequent normal physical operation. Confirm AP scanning, credential saving, WPS, and AP/STA switching as well.
+
+The phone keeps the existing 30-second inactive-session expiry. Network errors are visible, requests have finite timeouts, and action requests are never automatically retried. Settings with hostnames or malformed server IP addresses must be corrected to numeric IPv4 addresses.

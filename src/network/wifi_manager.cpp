@@ -203,9 +203,9 @@ void wifiManagerTick(
     return;
   }
 
-  if (provisioning && wpsPending)
+  static unsigned long wpsRequestTime = 0;
+  if (provisioning && (wpsPending || wpsRequestTime != 0))
   {
-    static unsigned long wpsRequestTime = 0;
     if (wpsRequestTime == 0)
       wpsRequestTime = currentMillis;
     else if (currentMillis - wpsRequestTime >= 500)

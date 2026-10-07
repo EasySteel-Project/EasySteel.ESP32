@@ -1,5 +1,8 @@
 #include "sensor_isr.h"
 
+// Registration is owned by the main loop, not by the interrupt handlers.
+static bool interruptsAttached = false;
+
 // State flags shared between ISR and main loop (marked volatile to prevent compiler caching)
 static volatile bool isRunningState = false;
 static volatile bool isTestModeState = false;
@@ -87,6 +90,7 @@ static void (*isrTable[MAX_TARGETS])() = {
 void sensorIsrEnable(bool isRunning)
 {
   isRunningState = isRunning;
+  if (interruptsAttached) { return; }
   for (int i = 0; i < MAX_TARGETS; i++)
   {
 #ifndef UNIT_TEST
@@ -94,6 +98,7 @@ void sensorIsrEnable(bool isRunning)
 #endif
     attachInterrupt(digitalPinToInterrupt(SENSOR_PINS[i]), isrTable[i], RISING);
   }
+  interruptsAttached = true;
 }
 
 // Disable hardware target interrupts
@@ -101,10 +106,12 @@ void sensorIsrDisable()
 {
   isRunningState = false;
   isTestModeState = false;
+  if (!interruptsAttached) { return; }
   for (int i = 0; i < MAX_TARGETS; i++)
   {
     detachInterrupt(digitalPinToInterrupt(SENSOR_PINS[i]));
   }
+  interruptsAttached = false;
 }
 
 // Dynamically toggles whether target hit interrupts are processed

@@ -12,9 +12,15 @@ bool scoringRulesShouldRecordTarget(int targetIndex, int targetCount, int roundM
   return targetIndex == 0 || targetIndex < targetCount;
 }
 
-int scoringRulesCalculateMissedTargets(int targetCount, const bool hitMask[MAX_TARGETS])
+int scoringRulesCalculateMissedTargets(int targetCount, const bool hitMask[MAX_TARGETS], int roundMode)
 {
+  if (roundMode == 2)
+  {
+    return 0;
+  }
+
   if (targetCount < 1)
+
     targetCount = 1;
   if (targetCount > MAX_TARGETS)
     targetCount = MAX_TARGETS;

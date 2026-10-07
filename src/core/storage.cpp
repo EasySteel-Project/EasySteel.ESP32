@@ -147,6 +147,33 @@ void storageSaveScreensaverTimeout(int minutes)
   prefs.end();
 }
 
+int storageLoadPreparationDelay()
+{
+  prefs.begin("easysteel", true);
+  int delay = prefs.getInt("prep_delay", 0);
+  prefs.end();
+  if (delay < 0 || delay > 30)
+  {
+    delay = 0;
+  }
+  return delay;
+}
+
+void storageSavePreparationDelay(int seconds)
+{
+  if (seconds < 0)
+  {
+    seconds = 0;
+  }
+  else if (seconds > 30)
+  {
+    seconds = 30;
+  }
+  prefs.begin("easysteel", false);
+  prefs.putInt("prep_delay", seconds);
+  prefs.end();
+}
+
 int storageLoadLanguage()
 {
   prefs.begin("easysteel", true);

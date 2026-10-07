@@ -11,41 +11,101 @@
 #include "ui_strings.h"
 
 #include <WiFi.h>
-#include <WebServer.h>
+#include <ESPAsyncWebServer.h>
+#include <WebResponseImpl.h>
+#include "web_transport.h"
+#include "web_template.h"
+#include "web_body.h"
+#include "browser_update.h"
 #include <ArduinoOTA.h>
 #include <Update.h>
 #include <ArduinoJson.h>
 #include <stdarg.h>
 #include "watchdog.h"
 
-static WebServer *httpServer = nullptr;
+static AsyncWebServer server(80);
+static WebRequest *activeRequest = nullptr; // Loop task only.
+static WebRequestQueue<std::shared_ptr<WebRequest>, 4> requests;
+static std::mutex requestsMutex;
+static std::atomic<bool> serving{false};
+static std::atomic<bool> apMode{false};
+static std::atomic<uint32_t> generation{0};
+static bool routesRegistered = false;
 static bool wpsPending = false;
-static bool adminAuthRequired = false;
-static String adminPassword;
-static bool browserOtaActive = false;
-static bool browserOtaSuccessful = false;
-static bool browserOtaRejected = false;
+static String adminRealm;
+static String adminPassword; // Initialized before the server first starts, then immutable.
+static String *configuredName = nullptr;
+static String *configuredServerIp = nullptr;
+static uint16_t *configuredPort = nullptr;
+static String apDeviceName;
+static unsigned long restartAt = 0;
+static bool scanRequested = false;
+static bool scanRunning = false;
+static String scanResults = "[]";
 
-static bool requireAdminAuthentication()
+// Browser OTA is explicitly reserved by the loop before any flash write is allowed.
+static BrowserUpdateSession browserUpdate;
+static std::mutex updateMutex;
+static std::atomic<bool> maintenanceActive{false};
+
+struct StateSnapshot
 {
-  if (!httpServer || !adminAuthRequired)
-    return true;
+  State state = STANDBY;
+  unsigned long capturedAt = 0;
+  unsigned long commandEpoch = 0;
+  unsigned long timeMs = 0;
+  unsigned long countdownId = 0;
+  unsigned long startInMs = 0;
+  int prepDelay = 0;
+  unsigned long prepInMs = 0;
+  int mode = 0;
+  int targetCount = 0;
+  int penaltyCount = 0;
+  int autoMissCount = 0;
+  bool hitMask[MAX_TARGETS] = {};
+  int targetIds[MAX_RECORDED_HITS] = {};
+  unsigned long splitTimes[MAX_RECORDED_HITS] = {};
+  int hitCount = 0;
+  TrainingResult trainingResult = {};
+  bool hasTrainingResult = false;
+  RemoteControlState remoteState = RemoteControlState::Disabled;
+  bool pcConnected = false;
+  char token[REMOTE_SESSION_TOKEN_LENGTH + 1] = "";
+};
+static std::mutex snapshotMutex;
+static StateSnapshot stateSnapshot;
+static char activityToken[REMOTE_SESSION_TOKEN_LENGTH + 1] = "";
+static unsigned long activityAt = 0;
+static bool activityPending = false;
 
-  if (httpServer->authenticate("admin", adminPassword.c_str()))
-    return true;
-
-  httpServer->requestAuthentication(BASIC_AUTH, STR_APP_NAME, STR_WEB_AUTHENTICATION_REQUIRED);
-  return false;
+void webServerPublishState()
+{
+  StateSnapshot snapshot;
+  snapshot.capturedAt = millis();
+  snapshot.commandEpoch = remoteControlGetCommandEpoch();
+  snapshot.state = roundControllerGetState();
+  snapshot.timeMs = roundControllerGetElapsedMs(snapshot.capturedAt);
+  snapshot.countdownId = roundControllerGetCountdownId();
+  snapshot.startInMs = roundControllerGetStartDelayRemainingMs(snapshot.capturedAt);
+  snapshot.prepDelay = roundControllerGetPreparationDelay();
+  snapshot.prepInMs = roundControllerGetPrepDelayRemainingMs(snapshot.capturedAt);
+  snapshot.mode = roundControllerGetRoundMode();
+  snapshot.targetCount = roundControllerGetTargetCount();
+  snapshot.penaltyCount = roundControllerGetPenaltyCount();
+  snapshot.autoMissCount = roundControllerGetAutomaticMissCount();
+  roundControllerGetHitMask(snapshot.hitMask, MAX_TARGETS);
+  snapshot.hitCount = roundControllerGetRecordedHits(snapshot.targetIds, snapshot.splitTimes, MAX_RECORDED_HITS);
+  snapshot.hasTrainingResult = roundControllerGetLatestTrainingResult(snapshot.trainingResult);
+  snapshot.remoteState = remoteControlGetState();
+  snapshot.pcConnected = remoteControlIsPcConnected();
+  remoteControlCopySessionToken(snapshot.token, sizeof(snapshot.token));
+  std::unique_lock<std::mutex> lock(snapshotMutex, std::try_to_lock);
+  if (lock.owns_lock()) { stateSnapshot = snapshot; }
 }
 
-static void finishBrowserOtaSession()
+static void scheduleRestart()
 {
-  if (browserOtaActive)
-  {
-    watchdogEnable();
-    browserOtaActive = false;
-  }
-  WiFi.setSleep(false);
+  restartAt = millis() + 2000;
 }
 
 struct TemplateVar {
@@ -53,62 +113,18 @@ struct TemplateVar {
   String value;
 };
 
-static void sendTemplate(const char* tpl, const TemplateVar* vars, size_t varCount)
+static void sendTemplate(const char *tpl, const TemplateVar *vars, size_t varCount)
 {
-  if (!httpServer) return;
-
-  httpServer->setContentLength(CONTENT_LENGTH_UNKNOWN);
-  httpServer->send(200, "text/html", "");
-
-  const char* pos = tpl;
-  while (*pos)
+  std::vector<WebTemplateValue> values;
+  values.reserve(varCount);
+  for (size_t index = 0; index < varCount; ++index)
   {
-    const char* pct = strchr(pos, '%');
-    if (!pct)
-    {
-      httpServer->sendContent(pos);
-      break;
-    }
-
-    if (pct > pos)
-    {
-      httpServer->sendContent(String(pos, (unsigned int)(pct - pos)));
-    }
-
-    const char* keyStart = pct + 1;
-    const char* endPct = strchr(keyStart, '%');
-    if (endPct)
-    {
-      size_t keyLen = endPct - keyStart;
-      bool matched = false;
-      for (size_t i = 0; i < varCount; i++)
-      {
-        if (strlen(vars[i].key) == keyLen &&
-            strncmp(keyStart, vars[i].key, keyLen) == 0)
-        {
-          if (vars[i].value.length() > 0)
-          {
-            httpServer->sendContent(vars[i].value);
-          }
-          pos = endPct + 1;
-          matched = true;
-          break;
-        }
-      }
-      if (!matched)
-      {
-        httpServer->sendContent("%");
-        pos = keyStart;
-      }
-    }
-    else
-    {
-      httpServer->sendContent("%");
-      pos = keyStart;
-    }
+    values.push_back({vars[index].key, vars[index].value.c_str()});
   }
-
-  httpServer->sendContent(""); // End chunked transfer
+  std::shared_ptr<WebTemplate> stream = std::make_shared<WebTemplate>(tpl, std::move(values));
+  activeRequest->response.reset(new AsyncChunkedResponse("text/html",
+    [stream](uint8_t *buffer, size_t maxLength, size_t) { return stream->read(buffer, maxLength); }));
+  activeRequest->response->addHeader("Cache-Control", "no-store");
 }
 
 static void sendSuccessPage(const char *message)
@@ -124,7 +140,7 @@ static void sendSuccessPage(const char *message)
 
 static void sendJsonError(int statusCode, const char *message, bool includeSuccess)
 {
-  if (!httpServer)
+  if (!activeRequest)
   {
     return;
   }
@@ -134,7 +150,7 @@ static void sendJsonError(int statusCode, const char *message, bool includeSucce
     ? "{\"success\":false,\"error\":\"%s\"}"
     : "{\"error\":\"%s\"}";
   snprintf(response, sizeof(response), format, message);
-  httpServer->send(statusCode, "application/json", response);
+  activeRequest->send(statusCode, "application/json", response);
 }
 
 static void handleTraining()
@@ -205,30 +221,29 @@ static void handleTraining()
     {"TRAINING_PENALTY_LABEL", STR_TRAINING_PENALTY_LABEL},
     {"TRAINING_TARGET_LABEL", STR_TRAINING_TARGET_LABEL},
     {"TRAINING_SECONDS_UNIT", STR_UNIT_SECONDS},
-    {"TRAINING_MISS_ABBREVIATION", STR_TRAINING_MISS_ABBREVIATION}
+    {"TRAINING_MISS_ABBREVIATION", STR_TRAINING_MISS_ABBREVIATION},
+    {"TRAINING_DISCONNECT", STR_TRAINING_DISCONNECT},
+    {"WEB_CONNECTION_INTERRUPTED", STR_WEB_CONNECTION_INTERRUPTED},
+    {"WEB_API_COMMAND_BUSY", STR_WEB_API_COMMAND_BUSY},
+    {"TRAINING_PREP_DELAY", STR_TRAINING_PREP_DELAY},
+    {"TRAINING_PREP_DELAY_HINT", STR_TRAINING_PREP_DELAY_HINT},
+    {"TRAINING_PREP_DELAY_OFF", STR_TRAINING_PREP_DELAY_OFF},
+    {"TRAINING_PREPARE", STR_TRAINING_PREPARE}
   };
   sendTemplate(TRAINING_PAGE, vars, sizeof(vars) / sizeof(vars[0]));
 }
 
 static void handleResetWifi()
 {
-  if (!httpServer) return;
+  if (!activeRequest) return;
 
-  if (!requireAdminAuthentication())
-    return;
 
-  if (httpServer->method() != HTTP_POST)
-  {
-    httpServer->send(405, "text/plain", STR_WEB_METHOD_NOT_ALLOWED);
-    return;
-  }
 
   networkResetCredentials();
 
   sendSuccessPage(STR_WEB_WIFI_RESET_MESSAGE);
 
-  delay(2000);
-  ESP.restart();
+  scheduleRestart();
 }
 
 static void handleWifiSetup(const String& deviceName)
@@ -262,15 +277,15 @@ static void handleWifiSetup(const String& deviceName)
 
 static void handleSaveWifi()
 {
-  if (!httpServer) return;
+  if (!activeRequest) return;
 
   Serial.println("[HTTP] POST /save-wifi - saving credentials");
-  String ssid = httpServer->arg("ssid");
-  String pass = httpServer->arg("pass");
+  String ssid = activeRequest->arg("ssid");
+  String pass = activeRequest->arg("pass");
 
   if (ssid.length() == 0)
   {
-    httpServer->send(400, "text/plain", STR_WEB_SSID_REQUIRED);
+    activeRequest->send(400, "text/plain", STR_WEB_SSID_REQUIRED);
     return;
   }
 
@@ -279,13 +294,12 @@ static void handleSaveWifi()
   sendSuccessPage(STR_WEB_WIFI_RESTART_MESSAGE);
 
   Serial.println("WiFi credentials saved. Restarting...");
-  delay(2000);
-  ESP.restart();
+  scheduleRestart();
 }
 
 static void handleWPS()
 {
-  if (!httpServer) return;
+  if (!activeRequest) return;
 
   const TemplateVar vars[] = {
     {"LANG", i18nGetLanguageCode()},
@@ -299,8 +313,6 @@ static void handleWPS()
 
 static void handleSettings(const String& deviceName, const String& serverIP, uint16_t tcpPort)
 {
-  if (!requireAdminAuthentication())
-    return;
 
   const TemplateVar vars[] = {
     {"LANG", i18nGetLanguageCode()},
@@ -313,6 +325,8 @@ static void handleSettings(const String& deviceName, const String& serverIP, uin
     {"SERVER_IP", serverIP},
     {"WEB_SERVER_IP_PLACEHOLDER", STR_WEB_SERVER_IP_PLACEHOLDER},
     {"WEB_TCP_PORT", STR_PORT},
+    {"WEB_PREP_DELAY", STR_WEB_PREP_DELAY},
+    {"PREP_DELAY", String(roundControllerGetPreparationDelay())},
     {"WEB_SAVE_SETTINGS", STR_WEB_SAVE_SETTINGS},
     {"WEB_SSID", STR_SSID},
     {"WIFI_SSID", WiFi.SSID()},
@@ -338,14 +352,18 @@ static void handleSettings(const String& deviceName, const String& serverIP, uin
 
 static void handleSaveSettings(String& deviceName, String& serverIP, uint16_t& tcpPort)
 {
-  if (!httpServer) return;
+  if (!activeRequest) return;
 
-  if (!requireAdminAuthentication())
+
+  String name = activeRequest->arg("name");
+  String srvIp = activeRequest->arg("serverIp");
+  String portStr = activeRequest->arg("port");
+  IPAddress address;
+  if (srvIp.length() > 0 && !address.fromString(srvIp))
+  {
+    sendJsonError(400, STR_WEB_API_INVALID_SERVER_IP, true);
     return;
-
-  String name = httpServer->arg("name");
-  String srvIp = httpServer->arg("serverIp");
-  String portStr = httpServer->arg("port");
+  }
 
   if (name.length() == 0)
     name = deviceName;
@@ -361,6 +379,15 @@ static void handleSaveSettings(String& deviceName, String& serverIP, uint16_t& t
   serverIP = srvIp;
   tcpPort = port;
   storageSaveDevice(name, srvIp, port);
+  String delayStr = activeRequest->arg("delay");
+  if (delayStr.length() > 0)
+  {
+    int delayVal = delayStr.toInt();
+    if (delayVal >= 0 && delayVal <= 30)
+    {
+      roundControllerSetPreparationDelay(delayVal);
+    }
+  }
 
   networkSendEvent("settings_changed", -1, 0);
 
@@ -415,12 +442,28 @@ static const char *remoteControlStateName(RemoteControlState state)
   return "disabled";
 }
 
-static void handleApiState()
+static void handleApiState(AsyncWebServerRequest *request)
 {
-  if (!httpServer) return;
+
 
   unsigned long currentMillis = millis();
-  State state = roundControllerGetState();
+  StateSnapshot snapshot;
+  String token = request->header("X-EasySteel-Token");
+  bool isController;
+  {
+    std::lock_guard<std::mutex> lock(snapshotMutex);
+    snapshot = stateSnapshot;
+    isController = snapshot.remoteState == RemoteControlState::Paired &&
+      token.length() == REMOTE_SESSION_TOKEN_LENGTH && token == snapshot.token &&
+      currentMillis - snapshot.capturedAt < 1000 && !maintenanceActive.load();
+    if (isController)
+    {
+      memcpy(activityToken, snapshot.token, sizeof(activityToken));
+      activityAt = currentMillis;
+      activityPending = true;
+    }
+  }
+  State state = snapshot.state;
   const char* stateStr = "STANDBY";
   switch (state)
   {
@@ -432,23 +475,22 @@ static void handleApiState()
     case FALSE_START: stateStr = "FALSE_START"; break;
   }
 
-  String token = httpServer->header("X-EasySteel-Token");
-  bool isController = remoteControlAuthorize(token.c_str(), currentMillis);
-  RemoteControlState remoteState = remoteControlGetState();
-  unsigned long timeMs = roundControllerGetElapsedMs(currentMillis);
-  unsigned long countdownId = roundControllerGetCountdownId();
-  unsigned long startInMs = roundControllerGetStartDelayRemainingMs(currentMillis);
-  int mode = roundControllerGetRoundMode();
-  int targetCount = roundControllerGetTargetCount();
-  int penaltyCount = roundControllerGetPenaltyCount();
-  int autoMissCount = roundControllerGetAutomaticMissCount();
+  RemoteControlState remoteState = snapshot.remoteState;
+  unsigned long timeMs = snapshot.timeMs;
+  unsigned long countdownId = snapshot.countdownId;
+  unsigned long startInMs = snapshot.startInMs;
+  int prepDelay = snapshot.prepDelay;
+  unsigned long prepInMs = snapshot.prepInMs;
+  int mode = snapshot.mode;
+  int targetCount = snapshot.targetCount;
+  int penaltyCount = snapshot.penaltyCount;
+  int autoMissCount = snapshot.autoMissCount;
 
-  bool hitMask[MAX_TARGETS] = {false};
-  roundControllerGetHitMask(hitMask, MAX_TARGETS);
+  const bool *hitMask = snapshot.hitMask;
 
-  int targetIds[MAX_RECORDED_HITS];
-  unsigned long splitTimes[MAX_RECORDED_HITS];
-  int hitCount = roundControllerGetRecordedHits(targetIds, splitTimes, MAX_RECORDED_HITS);
+  const int *targetIds = snapshot.targetIds;
+  const unsigned long *splitTimes = snapshot.splitTimes;
+  int hitCount = snapshot.hitCount;
 
   char jsonBuf[2048];
   int offset = 0;
@@ -456,18 +498,20 @@ static void handleApiState()
     jsonBuf,
     sizeof(jsonBuf),
     offset,
-    "{\"state\":\"%s\",\"timeMs\":%lu,\"countdownId\":%lu,\"startInMs\":%lu,\"mode\":%d,\"targetCount\":%d,\"penaltyCount\":%d,\"missCount\":%d,\"remoteState\":\"%s\",\"isController\":%s,\"pcConnected\":%s,\"hitMask\":[%s,%s,%s,%s,%s],\"hits\":[",
+    "{\"state\":\"%s\",\"timeMs\":%lu,\"countdownId\":%lu,\"startInMs\":%lu,\"prepDelay\":%d,\"prepInMs\":%lu,\"mode\":%d,\"targetCount\":%d,\"penaltyCount\":%d,\"missCount\":%d,\"remoteState\":\"%s\",\"isController\":%s,\"pcConnected\":%s,\"hitMask\":[%s,%s,%s,%s,%s],\"hits\":[",
     stateStr,
     timeMs,
     countdownId,
     startInMs,
+    prepDelay,
+    prepInMs,
     mode,
     targetCount,
     penaltyCount,
     autoMissCount,
     remoteControlStateName(remoteState),
     isController ? "true" : "false",
-    remoteControlIsPcConnected() ? "true" : "false",
+    snapshot.pcConnected ? "true" : "false",
     hitMask[0] ? "true" : "false",
     hitMask[1] ? "true" : "false",
     hitMask[2] ? "true" : "false",
@@ -486,8 +530,8 @@ static void handleApiState()
   }
 
   complete = complete && appendJson(jsonBuf, sizeof(jsonBuf), offset, "],\"trainingResult\":");
-  TrainingResult trainingResult = {};
-  if (complete && isController && roundControllerGetLatestTrainingResult(trainingResult))
+  const TrainingResult &trainingResult = snapshot.trainingResult;
+  if (complete && isController && snapshot.hasTrainingResult)
   {
     complete = appendJson(
       jsonBuf,
@@ -527,17 +571,19 @@ static void handleApiState()
 
   if (!complete)
   {
-    sendJsonError(500, STR_WEB_API_STATE_OVERFLOW, false);
+    request->send(500, "application/json", "{\"success\":false}");
     return;
   }
-  httpServer->send(200, "application/json", jsonBuf);
+  AsyncWebServerResponse *response = request->beginResponse(200, "application/json", jsonBuf);
+  response->addHeader("Cache-Control", "no-store");
+  request->send(response);
 }
 
 static void handleApiPair()
 {
-  if (!httpServer) return;
+  if (!activeRequest) return;
 
-  String body = httpServer->arg("plain");
+  String body = activeRequest->arg("plain");
   JsonDocument request;
   DeserializationError error = deserializeJson(request, body);
   if (error)
@@ -553,7 +599,7 @@ static void handleApiPair()
   {
     char response[96];
     snprintf(response, sizeof(response), "{\"success\":true,\"token\":\"%s\"}", token);
-    httpServer->send(200, "application/json", response);
+    activeRequest->send(200, "application/json", response);
     return;
   }
   if (result == RemotePairResult::AttemptsExceeded)
@@ -571,15 +617,10 @@ static void handleApiPair()
 
 static void handleApiAction()
 {
-  if (!httpServer) return;
+  if (!activeRequest) return;
 
-  if (httpServer->method() != HTTP_POST)
-  {
-    sendJsonError(405, STR_WEB_METHOD_NOT_ALLOWED, true);
-    return;
-  }
 
-  String token = httpServer->header("X-EasySteel-Token");
+  String token = activeRequest->header("X-EasySteel-Token");
   unsigned long currentMillis = millis();
   if (!remoteControlAuthorize(token.c_str(), currentMillis))
   {
@@ -587,7 +628,7 @@ static void handleApiAction()
     return;
   }
 
-  String body = httpServer->arg("plain");
+  String body = activeRequest->arg("plain");
   JsonDocument req;
   DeserializationError error = deserializeJson(req, body);
   if (error)
@@ -619,299 +660,429 @@ static void handleApiAction()
     remoteAction = RemoteControlAction::SetMode;
     actionValue = req["mode"] | -1;
   }
+  else if (action == "delay")
+  {
+    remoteAction = RemoteControlAction::SetPrepDelay;
+    actionValue = req["delay"] | -1;
+  }
+  else if (action == "disconnect")
+  {
+    remoteControlDisable();
+    webServerPublishState();
+    activeRequest->send(200, "application/json", "{\"success\":true}");
+    return;
+  }
   else
   {
     recognized = false;
   }
 
-  if (!recognized || !remoteControlActionAllowed(remoteAction, state, actionValue))
+  if (!recognized || activeRequest->commandEpoch != remoteControlGetCommandEpoch() ||
+      !remoteControlCommandStillValid(remoteAction, activeRequest->expectedState, state,
+        activeRequest->countdownId, roundControllerGetCountdownId(), actionValue))
   {
     sendJsonError(409, STR_WEB_API_ACTION_NOT_ALLOWED, true);
     return;
   }
 
-  if (!remoteControlQueueCommand(remoteAction, actionValue))
+  if (!remoteControlQueueCommand(remoteAction, actionValue, currentMillis, state, roundControllerGetCountdownId()))
   {
     sendJsonError(409, STR_WEB_API_COMMAND_BUSY, true);
     return;
   }
-  httpServer->send(202, "application/json", "{\"success\":true}");
+  activeRequest->send(202, "application/json", "{\"success\":true}");
 }
 
-static void registerCommonApiRoutes()
+static bool isConfigurationRoute(WebRoute route)
 {
-  if (!httpServer) return;
-  httpServer->on("/api/state", HTTP_GET, handleApiState);
-  httpServer->on("/api/pair", HTTP_POST, handleApiPair);
-  httpServer->on("/api/action", HTTP_POST, handleApiAction);
+  return route == WebRoute::SaveSettings || route == WebRoute::ResetWifi ||
+    route == WebRoute::SaveWifi || route == WebRoute::Wps || route == WebRoute::PrepareUpdate;
+}
+
+static bool authenticated(AsyncWebServerRequest *request)
+{
+  if (request->authenticate("admin", adminPassword.c_str())) { return true; }
+  request->requestAuthentication(adminRealm.c_str(), false);
+  return false;
+}
+
+static void receiveBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total)
+{
+  if (total == 0 || total > 512 || index > total || len > total - index)
+  {
+    request->send(413, "application/json", "{\"success\":false}");
+    return;
+  }
+  if (index == 0)
+  {
+    void *storage = malloc(sizeof(WebBody));
+    if (storage != nullptr) { request->_tempObject = new (storage) WebBody(); }
+  }
+  WebBody *body = static_cast<WebBody *>(request->_tempObject);
+  if (body == nullptr || !body->append(data, len, index, total))
+  {
+    request->send(400, "application/json", "{\"success\":false}");
+    return;
+  }
+}
+
+static String parameter(AsyncWebServerRequest *request, const char *name)
+{
+  const AsyncWebParameter *value = request->getParam(name, true);
+  return value == nullptr ? String() : value->value();
+}
+
+static void enqueueRequest(AsyncWebServerRequest *request, WebRoute route, bool admin)
+{
+  if (request->isSent()) { return; }
+  if (!serving.load()) { request->send(503); return; }
+  if (admin && !apMode.load() && !authenticated(request)) { return; }
+  if (route == WebRoute::State) { handleApiState(request); return; }
+  if (request->contentLength() > 512) { request->send(413); return; }
+  if (request->hasHeader("X-EasySteel-Token") && request->header("X-EasySteel-Token").length() > REMOTE_SESSION_TOKEN_LENGTH)
+  {
+    request->send(401); return;
+  }
+  if (WebRequest::liveCount.load() >= 4) { request->send(503); return; }
+  std::shared_ptr<WebRequest> job = std::make_shared<WebRequest>();
+  job->route = route;
+  job->queuedAt = millis();
+  job->generation = generation.load();
+  job->token = request->header("X-EasySteel-Token");
+  if (route == WebRoute::Action)
+  {
+    std::lock_guard<std::mutex> lock(snapshotMutex);
+    job->expectedState = stateSnapshot.state;
+    job->countdownId = stateSnapshot.countdownId;
+    job->commandEpoch = stateSnapshot.commandEpoch;
+  }
+  WebBody *body = static_cast<WebBody *>(request->_tempObject);
+  if (route == WebRoute::Pair || route == WebRoute::Action)
+  {
+    if (body == nullptr || body->size != request->contentLength()) { request->send(400); return; }
+    job->body = body->bytes;
+  }
+  job->name = parameter(request, "name");
+  job->serverIp = parameter(request, "serverIp");
+  job->port = parameter(request, "port");
+  job->ssid = parameter(request, "ssid");
+  job->password = parameter(request, "pass");
+  job->delay = parameter(request, "delay");
+  bool queued;
+  {
+    std::lock_guard<std::mutex> lock(requestsMutex);
+    queued = requests.push(job);
+  }
+  if (!queued) { request->send(503, "application/json", "{\"success\":false}"); return; }
+  request->send(new DeferredWebResponse(job));
+}
+
+static void finishUpload(AsyncWebServerRequest *request)
+{
+  if (!authenticated(request)) { return; }
+  uint32_t lease = strtoul(request->header("X-EasySteel-Update").c_str(), nullptr, 10);
+  bool success = request->_tempObject != nullptr && lease != 0 && lease == browserUpdate.lease() && browserUpdate.state() == BrowserUpdateState::Success;
+  request->send(success ? 200 : 409, "text/plain", success ? "OK" : "FAIL");
+}
+
+static void uploadFirmware(AsyncWebServerRequest *request, const String &, size_t index, uint8_t *data, size_t len, bool final)
+{
+  if (!serving.load() || apMode.load() || !request->authenticate("admin", adminPassword.c_str())) { return; }
+  uint32_t lease = strtoul(request->header("X-EasySteel-Update").c_str(), nullptr, 10);
+  std::lock_guard<std::mutex> lock(updateMutex);
+  if (lease == 0 || lease != browserUpdate.lease()) { return; }
+  if (index == 0)
+  {
+    if (!browserUpdate.claim(lease, millis())) { return; }
+    request->_tempObject = malloc(sizeof(uint32_t));
+    if (request->_tempObject == nullptr) { browserUpdate.finish(false); return; }
+    *static_cast<uint32_t *>(request->_tempObject) = lease;
+    request->onDisconnect([lease]() {
+      std::lock_guard<std::mutex> guard(updateMutex);
+      if (lease == browserUpdate.lease() && browserUpdate.state() == BrowserUpdateState::Uploading)
+      {
+        Update.abort();
+        browserUpdate.finish(false);
+      }
+    });
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN))
+    {
+      browserUpdate.finish(false);
+      return;
+    }
+  }
+  if (request->_tempObject == nullptr || *static_cast<uint32_t *>(request->_tempObject) != lease ||
+      browserUpdate.state() != BrowserUpdateState::Uploading) { return; }
+  if (!browserUpdate.acceptChunk(lease, index, len, millis()) || Update.write(data, len) != len)
+  {
+    Update.abort();
+    browserUpdate.finish(false);
+    return;
+  }
+  if (final)
+  {
+    browserUpdate.finish(Update.end(true));
+  }
+}
+
+// Reject large bodies before the library parses form fields into heap Strings.
+class BodyLimitHandler : public AsyncWebHandler
+{
+public:
+  bool canHandle(AsyncWebServerRequest *request) const override
+  {
+    return request->url() != "/update" && request->contentLength() > 512;
+  }
+  void handleRequest(AsyncWebServerRequest *request) override { request->send(413); }
+  bool isRequestHandlerTrivial() const override { return true; }
+};
+
+static void registerRoutes()
+{
+  if (routesRegistered) { return; }
+  routesRegistered = true;
+  server.addHandler(new BodyLimitHandler());
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    enqueueRequest(request, apMode.load() ? WebRoute::WifiSetup : WebRoute::Training, false);
+  });
+  struct Route { const char *path; WebRequestMethod method; WebRoute route; bool admin; bool apOnly; };
+  const Route routes[] = {
+    {"/training", HTTP_GET, WebRoute::Training, false, false},
+    {"/api/state", HTTP_GET, WebRoute::State, false, false},
+    {"/api/pair", HTTP_POST, WebRoute::Pair, false, false},
+    {"/api/action", HTTP_POST, WebRoute::Action, false, false},
+    {"/settings", HTTP_GET, WebRoute::Settings, true, false},
+    {"/save-settings", HTTP_POST, WebRoute::SaveSettings, true, false},
+    {"/reset-wifi", HTTP_POST, WebRoute::ResetWifi, true, false},
+    {"/save-wifi", HTTP_POST, WebRoute::SaveWifi, false, true},
+    {"/scan-wifi", HTTP_GET, WebRoute::ScanWifi, false, true},
+    {"/wps", HTTP_GET, WebRoute::Wps, false, true},
+    {"/update/prepare", HTTP_POST, WebRoute::PrepareUpdate, true, false}
+  };
+  for (const Route &route : routes)
+  {
+    server.on(route.path, route.method, [route](AsyncWebServerRequest *request) {
+      bool accessPoint = apMode.load();
+      if (route.apOnly != accessPoint && route.route != WebRoute::ResetWifi)
+      {
+        request->send(404); return;
+      }
+      enqueueRequest(request, route.route, route.admin);
+    }, nullptr, receiveBody);
+  }
+  server.on("/update", HTTP_POST, finishUpload, uploadFirmware);
+  server.onNotFound([](AsyncWebServerRequest *request) {
+    if (apMode.load()) { request->redirect("/"); }
+    else { request->send(404); }
+  });
 }
 
 void webServerStop()
 {
-  if (httpServer)
-  {
-    httpServer->stop();
-    delete httpServer;
-    httpServer = nullptr;
-  }
+  serving.store(false);
+  generation.fetch_add(1);
+  server.end();
 }
 
 bool webServerCheckAndClearWpsPending()
 {
-  if (wpsPending)
-  {
-    wpsPending = false;
-    return true;
-  }
-  return false;
+  bool pending = wpsPending;
+  wpsPending = false;
+  return pending;
 }
 
-static void handleScanWifi()
-{
-  if (!httpServer) return;
-
-  if (WiFi.getMode() != WIFI_AP_STA && WiFi.getMode() != WIFI_MODE_APSTA)
-  {
-    WiFi.mode(WIFI_AP_STA);
-    delay(50);
-  }
-
-  int n = WiFi.scanNetworks(false, false);
-  if (n < 0)
-  {
-    // Retry once if busy
-    delay(100);
-    n = WiFi.scanNetworks(false, false);
-  }
-
-  Serial.printf("[WIFI] Scan found %d networks\n", n);
-
-  String json = "[";
-  if (n > 0)
-  {
-    bool first = true;
-    for (int i = 0; i < n; i++)
-    {
-      String ssid = WiFi.SSID(i);
-      if (ssid.length() == 0) continue;
-
-      ssid.replace("\\", "\\\\");
-      ssid.replace("\"", "\\\"");
-
-      if (!first) json += ",";
-      first = false;
-
-      json += "{\"ssid\":\"";
-      json += ssid;
-      json += "\",\"rssi\":";
-      json += WiFi.RSSI(i);
-      json += "}";
-    }
-  }
-  json += "]";
-  WiFi.scanDelete();
-  httpServer->send(200, "application/json", json);
-}
-
-static void registerUpdateHandler()
-{
-  if (!httpServer) return;
-
-  httpServer->on("/update", HTTP_POST, []() {
-    if (!requireAdminAuthentication())
-      return;
-
-    if (browserOtaRejected)
-    {
-      httpServer->send(423, "text/plain", STR_WEB_OTA_IDLE_REQUIRED);
-      browserOtaRejected = false;
-      return;
-    }
-
-    bool success = browserOtaSuccessful && !Update.hasError();
-    httpServer->sendHeader("Connection", "close");
-    httpServer->send(200, "text/plain", success ? "OK" : "FAIL");
-    if (success)
-    {
-      Serial.println("[OTA] Browser update completed successfully. Restarting...");
-      displayUpdate(STR_WEB_OTA_DISPLAY_TITLE, STR_WEB_OTA_SUCCESS);
-      delay(1000);
-      ESP.restart();
-    }
-    else
-    {
-      Serial.printf("[OTA] Browser update failed: error %u\n", Update.getError());
-      displayUpdate(STR_WEB_OTA_ERROR_TITLE, STR_WEB_OTA_ABORT);
-    }
-  }, []() {
-    HTTPUpload& upload = httpServer->upload();
-    if (upload.status == UPLOAD_FILE_START)
-    {
-      browserOtaSuccessful = false;
-      browserOtaRejected = false;
-
-      if (!requireAdminAuthentication() || !roundControllerIsIdle())
-      {
-        browserOtaRejected = true;
-        return;
-      }
-
-      watchdogDisable();
-      sensorIsrDisable();
-      WiFi.setSleep(false);
-      browserOtaActive = true;
-      Serial.printf("[OTA] Browser Upload Start: %s\n", upload.filename.c_str());
-      displayUpdate(STR_WEB_OTA_BROWSER_TITLE, STR_WEB_OTA_FLASHING);
-
-      if (!Update.begin(UPDATE_SIZE_UNKNOWN))
-      {
-        Update.printError(Serial);
-        finishBrowserOtaSession();
-      }
-    }
-    else if (upload.status == UPLOAD_FILE_WRITE)
-    {
-      if (!browserOtaActive)
-        return;
-
-      watchdogFeed();
-      if (Update.write(upload.buf, upload.currentSize) != upload.currentSize)
-      {
-        Update.printError(Serial);
-        Update.abort();
-        finishBrowserOtaSession();
-      }
-    }
-    else if (upload.status == UPLOAD_FILE_END)
-    {
-      if (!browserOtaActive)
-        return;
-
-      browserOtaSuccessful = Update.end(true);
-      if (browserOtaSuccessful)
-      {
-        Serial.printf("[OTA] Browser Upload Success: %u bytes\n", upload.totalSize);
-      }
-      else
-      {
-        Update.printError(Serial);
-      }
-      finishBrowserOtaSession();
-    }
-    else if (upload.status == UPLOAD_FILE_ABORTED)
-    {
-      if (browserOtaActive)
-      {
-        Update.abort();
-      }
-      finishBrowserOtaSession();
-      Serial.println("[OTA] Browser Upload Aborted");
-    }
-  });
-}
-
-void webServerInitAP(const String& deviceName, const String& apPassword)
+void webServerInitAP(const String &deviceName, const String &apPassword)
 {
   webServerStop();
   remoteControlDisable();
-  adminAuthRequired = false;
-  adminPassword = apPassword;
-
-  httpServer = new WebServer(80);
-  httpServer->on("/", HTTP_GET, [deviceName]() { handleWifiSetup(deviceName); });
-  httpServer->on("/scan-wifi", HTTP_GET, handleScanWifi);
-  httpServer->on("/save-wifi", HTTP_POST, handleSaveWifi);
-  httpServer->on("/wps", HTTP_GET, handleWPS);
-  httpServer->on("/reset-wifi", HTTP_POST, handleResetWifi);
-
-  // Captive Portal redirect: Send unknown paths to setup
-  httpServer->onNotFound([]() {
-    if (httpServer) {
-      Serial.printf("[HTTP] 404 Redirect: %s -> /\n", httpServer->uri().c_str());
-      httpServer->sendHeader("Location", "/", true);
-      httpServer->send(302, "text/plain", "");
-    }
-  });
-
-  httpServer->begin();
+  if (!routesRegistered) { adminPassword = apPassword; adminRealm = STR_APP_NAME; }
+  apDeviceName = deviceName;
+  apMode.store(true);
+  scanRequested = true;
+  registerRoutes();
+  webServerPublishState();
+  serving.store(true);
+  server.begin();
 }
 
-void webServerInitSTA(String& deviceName, String& serverIP, uint16_t& tcpPort, const String& apPassword)
+void webServerInitSTA(String &deviceName, String &serverIP, uint16_t &tcpPort, const String &apPassword)
 {
   webServerStop();
-  adminAuthRequired = true;
-  adminPassword = apPassword;
-
-  httpServer = new WebServer(80);
-  const char *headerKeys[] = {"X-EasySteel-Token"};
-  httpServer->collectHeaders(headerKeys, 1);
-
-  // Serve Solo Training Dashboard on root and /training
-  httpServer->on("/", HTTP_GET, []() {
-    handleTraining();
-  });
-  httpServer->on("/training", HTTP_GET, []() {
-    handleTraining();
-  });
-
-  // Settings page
-  httpServer->on("/settings", HTTP_GET, [&deviceName, &serverIP, &tcpPort]() { handleSettings(deviceName, serverIP, tcpPort); });
-  httpServer->on("/save-settings", HTTP_POST, [&deviceName, &serverIP, &tcpPort]() { handleSaveSettings(deviceName, serverIP, tcpPort); });
-  httpServer->on("/reset-wifi", HTTP_POST, handleResetWifi);
-
-  registerCommonApiRoutes();
-  registerUpdateHandler();
-  httpServer->begin();
-
-  Serial.println("Solo Training Dashboard at http://" + WiFi.localIP().toString() + "/");
-  Serial.println("Settings page at http://" + WiFi.localIP().toString() + "/settings");
-
+  if (!routesRegistered) { adminPassword = apPassword; adminRealm = STR_APP_NAME; }
+  configuredName = &deviceName;
+  configuredServerIp = &serverIP;
+  configuredPort = &tcpPort;
+  apMode.store(false);
+  registerRoutes();
+  webServerPublishState();
+  serving.store(true);
+  server.begin();
   ArduinoOTA.setHostname(deviceName.c_str());
-  if (apPassword.length() > 0)
-  {
-    ArduinoOTA.setPassword(apPassword.c_str());
-  }
-
+  ArduinoOTA.setPassword(apPassword.c_str());
   ArduinoOTA.onStart([]() {
+    maintenanceActive.store(true);
+    remoteControlDisable();
     watchdogDisable();
     sensorIsrDisable();
     WiFi.setSleep(false);
-    Serial.println("OTA Start");
     displayUpdate(STR_WEB_OTA_DISPLAY_TITLE, STR_WEB_OTA_FLASHING);
   });
-  ArduinoOTA.onEnd([]() {
+  ArduinoOTA.onEnd([]() { watchdogEnable(); maintenanceActive.store(false); });
+  ArduinoOTA.onProgress([](unsigned int, unsigned int) { watchdogFeed(); });
+  ArduinoOTA.onError([](ota_error_t) {
     watchdogEnable();
-    Serial.println("\nOTA End");
-    displayUpdate(STR_WEB_OTA_DISPLAY_TITLE, STR_WEB_OTA_SUCCESS);
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    watchdogFeed();
-    if (total > 0)
-    {
-      Serial.printf("Progress: %u%%\r", (unsigned int)(progress * 100ULL / total));
-    }
-  });
-  ArduinoOTA.onError([](ota_error_t error) {
-    watchdogEnable();
-    Serial.printf("Error[%u]: ", error);
+    maintenanceActive.store(false);
     displayUpdate(STR_WEB_OTA_ERROR_TITLE, STR_WEB_OTA_ABORT);
   });
-
   ArduinoOTA.begin();
-  Serial.println("OTA initialized");
+}
+
+bool webServerMaintenanceActive()
+{
+  return maintenanceActive.load() || restartAt != 0;
+}
+
+static void scanTick()
+{
+  if (!apMode.load()) { return; }
+  if (scanRequested && !scanRunning)
+  {
+    scanRequested = false;
+    if (WiFi.getMode() != WIFI_AP_STA) { WiFi.mode(WIFI_AP_STA); }
+    scanRunning = WiFi.scanNetworks(true, false) == WIFI_SCAN_RUNNING;
+  }
+  if (!scanRunning) { return; }
+  int count = WiFi.scanComplete();
+  if (count == WIFI_SCAN_RUNNING) { return; }
+  JsonDocument result;
+  JsonArray entries = result.to<JsonArray>();
+  for (int index = 0; index < count && index < 24; ++index)
+  {
+    JsonObject entry = entries.add<JsonObject>();
+    entry["ssid"] = WiFi.SSID(index);
+    entry["rssi"] = WiFi.RSSI(index);
+  }
+  scanResults = "";
+  serializeJson(result, scanResults);
+  WiFi.scanDelete();
+  scanRunning = false;
+}
+
+static void updateTick()
+{
+  BrowserUpdateState state = browserUpdate.state();
+  if (state == BrowserUpdateState::Idle) { return; }
+  std::unique_lock<std::mutex> lock(updateMutex, std::try_to_lock);
+  if (!lock.owns_lock()) { return; }
+  state = browserUpdate.state();
+  if (browserUpdate.expired(millis()))
+  {
+    if (state == BrowserUpdateState::Uploading) { Update.abort(); }
+    browserUpdate.finish(false);
+    state = BrowserUpdateState::Failed;
+  }
+  if (state == BrowserUpdateState::Success)
+  {
+    if (restartAt == 0) {
+      watchdogEnable();
+      maintenanceActive.store(false);
+      scheduleRestart();
+    }
+  }
+  else if (state == BrowserUpdateState::Failed)
+  {
+    Update.abort();
+    browserUpdate.reset();
+    watchdogEnable();
+    maintenanceActive.store(false);
+    displayUpdate(STR_WEB_OTA_ERROR_TITLE, STR_WEB_OTA_ABORT);
+  }
 }
 
 void webServerTick()
 {
-  unsigned long currentMillis = millis();
   remoteControlSetPcConnected(networkIsServerConnected());
-  remoteControlTick(currentMillis);
-
-  if (httpServer)
+  char token[REMOTE_SESSION_TOKEN_LENGTH + 1] = "";
+  unsigned long touchedAt = 0;
   {
-    httpServer->handleClient();
+    std::unique_lock<std::mutex> lock(snapshotMutex, std::try_to_lock);
+    if (lock.owns_lock() && activityPending)
+    {
+      memcpy(token, activityToken, sizeof(token));
+      touchedAt = activityAt;
+      activityPending = false;
+    }
   }
-  if (roundControllerIsIdle())
+  if (token[0] != '\0' && millis() - touchedAt < 1000) { remoteControlAuthorize(token, millis()); }
+  remoteControlTick(millis());
+  updateTick();
+  if (restartAt != 0 && static_cast<int32_t>(millis() - restartAt) >= 0) { ESP.restart(); }
+  scanTick();
+
+  std::shared_ptr<WebRequest> job;
+  {
+    std::unique_lock<std::mutex> lock(requestsMutex, std::try_to_lock);
+    if (lock.owns_lock()) { requests.pop(job); }
+  }
+  if (job && !job->cancelled.load())
+  {
+    activeRequest = job.get();
+    if (job->generation != generation.load() || webRequestExpired(millis(), job->queuedAt))
+    {
+      sendJsonError(503, STR_WEB_API_COMMAND_BUSY, true);
+    }
+    else if (webServerMaintenanceActive() ||
+      (isConfigurationRoute(job->route) && !apMode.load() && !roundControllerIsIdle()))
+    {
+      sendJsonError(423, STR_WEB_OTA_IDLE_REQUIRED, true);
+    }
+    else
+    {
+      switch (job->route)
+      {
+        case WebRoute::Training: handleTraining(); break;
+        case WebRoute::State: break;
+        case WebRoute::Pair: handleApiPair(); break;
+        case WebRoute::Action: handleApiAction(); break;
+        case WebRoute::Settings: handleSettings(*configuredName, *configuredServerIp, *configuredPort); break;
+        case WebRoute::SaveSettings: handleSaveSettings(*configuredName, *configuredServerIp, *configuredPort); break;
+        case WebRoute::ResetWifi: handleResetWifi(); break;
+        case WebRoute::WifiSetup: handleWifiSetup(apDeviceName); break;
+        case WebRoute::SaveWifi: handleSaveWifi(); break;
+        case WebRoute::Wps: handleWPS(); break;
+        case WebRoute::ScanWifi:
+          if (scanRunning || scanRequested) { activeRequest->send(202, "application/json", "[]"); }
+          else { activeRequest->send(200, "application/json", scanResults); scanRequested = true; }
+          break;
+        case WebRoute::PrepareUpdate:
+        {
+          std::unique_lock<std::mutex> lock(updateMutex, std::try_to_lock);
+          if (!lock.owns_lock()) { sendJsonError(503, STR_WEB_API_COMMAND_BUSY, true); break; }
+          remoteControlDisable();
+          sensorIsrDisable();
+          WiFi.setSleep(false);
+          watchdogDisable();
+          maintenanceActive.store(true);
+          uint32_t lease = esp_random();
+          if (lease == 0) { lease = 1; }
+          if (!browserUpdate.reserve(lease, millis(), roundControllerIsIdle()))
+          {
+            maintenanceActive.store(false);
+            watchdogEnable();
+            sendJsonError(423, STR_WEB_OTA_IDLE_REQUIRED, true);
+            break;
+          }
+          displayUpdate(STR_WEB_OTA_DISPLAY_TITLE, STR_WEB_OTA_FLASHING);
+          activeRequest->send(200, "application/json", "{\"lease\":\"" + String(lease) + "\"}");
+          break;
+        }
+      }
+    }
+    if (!job->response) { job->send(500, "application/json", "{\"success\":false}"); }
+    job->ready.store(true);
+    activeRequest = nullptr;
+  }
+  if (serving.load() && !apMode.load() && !webServerMaintenanceActive() && roundControllerIsIdle())
   {
     ArduinoOTA.handle();
   }

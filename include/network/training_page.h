@@ -64,6 +64,13 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
       border: none; border-radius: 8px; padding: 10px 14px; font-weight: 700;
       background: #4ecca3; color: #06251b; cursor: pointer;
     }
+    .unpair-row { display: none; justify-content: center; margin-top: 10px; }
+    .btn-unpair {
+      background: #252838; border: 1px solid #4b232b; color: #f87171;
+      border-radius: 8px; padding: 6px 14px; font-size: 0.82rem; cursor: pointer;
+      font-weight: 600; transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .btn-unpair:hover { background: #3b1820; border-color: #e94560; color: #ffccd5; }
 
     .stage-selector {
       display: flex; justify-content: space-between; align-items: center; gap: 12px;
@@ -247,14 +254,40 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
         <input id="pair-pin" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="%TRAINING_PIN_PLACEHOLDER%">
         <button onclick="pairPhone()">%TRAINING_PAIR%</button>
       </div>
+      <div id="unpair-row" class="unpair-row">
+        <button type="button" class="btn-unpair" onclick="unpairPhone()">%TRAINING_DISCONNECT%</button>
+      </div>
     </div>
 
-    <div class="stage-selector">
+    <div class="stage-selector" id="stage-selector-wrap">
       <div>
         <label for="stage-select">%TRAINING_STAGE%</label>
         <div class="local-note">%TRAINING_LOCAL_ONLY%</div>
       </div>
       <select id="stage-select" onchange="saveSelectedStage()"></select>
+    </div>
+
+    <div class="stage-selector prep-delay-selector">
+      <div>
+        <label for="prep-delay-select">%TRAINING_PREP_DELAY%</label>
+        <div class="local-note">%TRAINING_PREP_DELAY_HINT%</div>
+      </div>
+      <select id="prep-delay-select" onchange="setPrepDelay(this.value)">
+        <option value="0">%TRAINING_PREP_DELAY_OFF%</option>
+        <option value="1">1 s</option>
+        <option value="2">2 s</option>
+        <option value="3">3 s</option>
+        <option value="4">4 s</option>
+        <option value="5">5 s</option>
+        <option value="6">6 s</option>
+        <option value="7">7 s</option>
+        <option value="8">8 s</option>
+        <option value="10">10 s</option>
+        <option value="12">12 s</option>
+        <option value="15">15 s</option>
+        <option value="20">20 s</option>
+        <option value="30">30 s</option>
+      </select>
     </div>
 
     <!-- Timer Card -->
@@ -345,6 +378,7 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
       </div>
     </div>
 
+    <p id="request-error" role="alert" style="display:none;color:#e94560"></p>
     <div class="footer-links">
       <a href="/settings">%TRAINING_SETTINGS_LINK%</a>
     </div>
@@ -352,6 +386,8 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
 
   <script>
     const TEXT = {
+      connectionInterrupted: '%WEB_CONNECTION_INTERRUPTED%',
+      commandBusy: '%WEB_API_COMMAND_BUSY%',
       wakeOff: '%TRAINING_WAKE_OFF%',
       wakeOn: '%TRAINING_WAKE_ON%',
       beepOff: '%TRAINING_BEEP_OFF%',
@@ -395,7 +431,12 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
       targetLabel: '%TRAINING_TARGET_LABEL%',
       targetPrefix: '%TRAINING_TARGET_PREFIX%',
       secondsUnit: '%TRAINING_SECONDS_UNIT%',
-      missAbbreviation: '%TRAINING_MISS_ABBREVIATION%'
+      missAbbreviation: '%TRAINING_MISS_ABBREVIATION%',
+      disconnect: '%TRAINING_DISCONNECT%',
+      prepDelay: '%TRAINING_PREP_DELAY%',
+      prepDelayHint: '%TRAINING_PREP_DELAY_HINT%',
+      prepDelayOff: '%TRAINING_PREP_DELAY_OFF%',
+      prepare: '%TRAINING_PREPARE%'
     };
 
     const STAGES = [
@@ -423,6 +464,35 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
     let remoteToken = sessionStorage.getItem('es_remote_token') || '';
     let lastRecordedRoundId = localStorage.getItem('es_last_result_id') || '';
     let pollInterval = 200;
+    let actionPending = false;
+    let connectionFailed = false;
+
+    function showRequestError(message) {
+      const element = document.getElementById('request-error');
+      element.textContent = message;
+      element.style.display = message ? 'block' : 'none';
+    }
+
+    async function requestJson(url, options = {}) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 4000);
+      try {
+        const response = await fetch(url, {...options, signal: controller.signal, cache: 'no-store'});
+        if (response.status === 401) {
+          remoteToken = '';
+          sessionStorage.removeItem('es_remote_token');
+        }
+        let data;
+        try { data = await response.json(); } catch (_) { data = {}; }
+        if (!response.ok) {
+          throw new Error(data.error || (response.status === 503 ? TEXT.commandBusy : TEXT.connectionInterrupted));
+        }
+        return data;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
     let historyFilter = 'all';
     let selectedStageId = loadSelectedStageId();
 
@@ -732,13 +802,13 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
       const run = {
         id: result.id,
         timestamp: timeStr,
-        stageId: selectedStageId,
+        stageId: (result.mode === 2) ? '' : selectedStageId,
         mode: result.mode,
         modeName: modeNames[result.mode] || TEXT.unknown,
         rawTimeMs: result.rawTimeMs,
         finalTimeMs: result.timeMs,
-        missCount: result.missCount || 0,
-        penaltyCount: result.penaltyCount || 0,
+        missCount: (result.mode === 2) ? 0 : (result.missCount || 0),
+        penaltyCount: (result.mode === 2) ? 0 : (result.penaltyCount || 0),
         targetCount: result.targetCount || 0,
         hitMask: result.hitMask || [],
         hits: result.hits || []
@@ -781,19 +851,30 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
 
       let minMs = Infinity;
       let sumMs = 0;
+      let validCount = 0;
       filtered.forEach(h => {
+        if (h.mode === 2 && (!h.hits || h.hits.length === 0)) {
+          return;
+        }
         if (h.finalTimeMs < minMs) minMs = h.finalTimeMs;
         sumMs += h.finalTimeMs;
+        validCount++;
       });
 
-      bestEl.innerText = (minMs / 1000).toFixed(3) + TEXT.secondsUnit;
-      avgEl.innerText = ((sumMs / filtered.length) / 1000).toFixed(3) + TEXT.secondsUnit;
+      if (validCount > 0) {
+        bestEl.innerText = (minMs / 1000).toFixed(3) + TEXT.secondsUnit;
+        avgEl.innerText = ((sumMs / validCount) / 1000).toFixed(3) + TEXT.secondsUnit;
+      } else {
+        bestEl.innerText = '\u2013';
+        avgEl.innerText = '\u2013';
+      }
 
       let html = '';
       filtered.forEach(h => {
-        const pText = h.penaltyCount > 0 ? ('<span class="hist-penalty">+' + h.penaltyCount + TEXT.missAbbreviation + '</span>') : '';
-        const stageName = getHistoryStageName(h);
+        const pText = (h.mode !== 2 && h.penaltyCount > 0) ? ('<span class="hist-penalty">+' + h.penaltyCount + TEXT.missAbbreviation + '</span>') : '';
+        const stageName = (h.mode === 2) ? '' : getHistoryStageName(h);
         const stageText = stageName ? ('<span class="hist-tag">' + stageName + '</span> ') : '';
+        const noHitText = (h.mode === 2 && (!h.hits || h.hits.length === 0)) ? (' <span class="hist-penalty">' + TEXT.noHits + '</span>') : '';
         let splitsHtml = '';
         if (h.hits && h.hits.length > 0) {
           splitsHtml = '<div class="hist-splits" id="h-split-' + h.id + '">';
@@ -801,7 +882,7 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
           h.hits.forEach((hit, idx) => {
             const delta = (idx === 0) ? hit.splitMs : (hit.splitMs - prev);
             prev = hit.splitMs;
-            const tName = hit.target === 0 ? TEXT.stopPlate : (TEXT.targetPrefix + (hit.target + 1));
+            const tName = hit.target === 0 ? TEXT.stopPlate : (TEXT.targetPrefix + hit.target);
             splitsHtml += '<div>#' + (idx + 1) + ' ' + tName + ': ' + (hit.splitMs / 1000).toFixed(3) + TEXT.secondsUnit + ' (+' + (delta / 1000).toFixed(3) + TEXT.secondsUnit + ')</div>';
           });
           splitsHtml += '</div>';
@@ -810,7 +891,7 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
         html += '<div class="hist-item">' +
           '<div class="hist-main" onclick="toggleHistSplits(\'' + h.id + '\')">' +
             '<div>' + stageText + '<span class="hist-tag">' + h.modeName + '</span> <span style="color:#777;margin-left:4px;">' + h.timestamp + '</span></div>' +
-            '<div><span class="hist-time">' + (h.finalTimeMs / 1000).toFixed(3) + TEXT.secondsUnit + '</span>' + pText + ' &#9662;</div>' +
+            '<div><span class="hist-time">' + (h.finalTimeMs / 1000).toFixed(3) + TEXT.secondsUnit + '</span>' + pText + noHitText + ' &#9662;</div>' +
           '</div>' +
           splitsHtml +
         '</div>';
@@ -834,7 +915,7 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
       }
       let csv = TEXT.csvHeader;
       hist.forEach(h => {
-        const splitsStr = (h.hits || []).map(s => (s.target === 0 ? TEXT.stopPlate : TEXT.targetPrefix + (s.target + 1)) + ':' + (s.splitMs / 1000).toFixed(3)).join(' | ');
+        const splitsStr = (h.hits || []).map(s => (s.target === 0 ? TEXT.stopPlate : TEXT.targetPrefix + s.target) + ':' + (s.splitMs / 1000).toFixed(3)).join(' | ');
         const stageName = getHistoryStageName(h);
         csv += '"' + h.timestamp + '","' + stageName + '","' + h.modeName + '",' + ((h.rawTimeMs || h.finalTimeMs) / 1000).toFixed(3) + ',' + (h.finalTimeMs / 1000).toFixed(3) + ',' + (h.missCount || 0) + ',"' + splitsStr + '"\n';
       });
@@ -855,70 +936,93 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
       }
     }
 
-    function sendAction(action, payload = {}) {
-      if (!remoteToken) return;
-      if (action === 'stop' || action === 'reset') {
-        cancelScheduledStartBeep(true);
-      }
+    async function sendAction(action, payload = {}) {
+      if (!remoteToken || actionPending) return;
+      actionPending = true;
+      if (action === 'stop' || action === 'reset') cancelScheduledStartBeep(true);
       if (audioEnabled) initAudio();
-      if (!wakeLockEnabled) {
-        enableWakeLock();
-      }
-      payload.action = action;
-      fetch('/api/action', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json', 'X-EasySteel-Token': remoteToken},
-        body: JSON.stringify(payload)
-      }).then(r => {
-        if (r.status === 401) {
-          remoteToken = '';
-          sessionStorage.removeItem('es_remote_token');
-        }
-        return r.json();
-      }).then(res => {
-        if (res.success) {
+      if (!wakeLockEnabled) enableWakeLock();
+      try {
+        const result = await requestJson('/api/action', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'X-EasySteel-Token': remoteToken},
+          body: JSON.stringify({...payload, action: action})
+        });
+        if (result.success) {
+          showRequestError('');
           playBeep(700, 0.06, 'sine');
-        } else {
-          console.warn('Action rejected:', res);
         }
-      });
+      } catch (error) {
+        showRequestError(error.message || TEXT.connectionInterrupted);
+      } finally {
+        actionPending = false;
+      }
     }
 
-    function pairPhone() {
+    async function pairPhone() {
+      if (actionPending) return;
       const input = document.getElementById('pair-pin');
       const pin = input.value.trim();
       if (!/^\d{4}$/.test(pin)) {
-        alert(TEXT.pinInvalid);
+        showRequestError(TEXT.pinInvalid);
         return;
       }
-      fetch('/api/pair', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({pin: pin})
-      }).then(r => r.json()).then(result => {
+      actionPending = true;
+      try {
+        const result = await requestJson('/api/pair', {
+          method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({pin: pin})
+        });
         if (result.success && result.token) {
           remoteToken = result.token;
           sessionStorage.setItem('es_remote_token', remoteToken);
           input.value = '';
+          showRequestError('');
         } else {
-          alert(result.error || TEXT.pairFailed);
+          showRequestError(result.error || TEXT.pairFailed);
         }
-      });
+      } catch (error) {
+        showRequestError(error.message || TEXT.connectionInterrupted);
+      } finally {
+        actionPending = false;
+      }
+    }
+
+    async function unpairPhone() {
+      if (!remoteToken || actionPending) return;
+      actionPending = true;
+      cancelScheduledStartBeep(true);
+      try {
+        await requestJson('/api/action', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'X-EasySteel-Token': remoteToken},
+          body: JSON.stringify({action: 'disconnect'})
+        });
+      } catch (_) {
+        // Clear session locally regardless of network outcome
+      } finally {
+        remoteToken = '';
+        sessionStorage.removeItem('es_remote_token');
+        actionPending = false;
+        updateDashboard();
+      }
     }
 
     function updateRemoteUI(data) {
       const remoteCard = document.getElementById('remote-card');
       const message = document.getElementById('remote-message');
       const pairRow = document.getElementById('pair-row');
+      const unpairRow = document.getElementById('unpair-row');
       const banner = document.getElementById('tourn-banner');
 
       banner.style.display = data.pcConnected ? 'block' : 'none';
       pairRow.style.display = 'none';
+      if (unpairRow) unpairRow.style.display = 'none';
       remoteCard.style.borderColor = '#303443';
 
       if (data.isController) {
         message.innerText = TEXT.controller;
         remoteCard.style.borderColor = '#2d6a4f';
+        if (unpairRow) unpairRow.style.display = 'flex';
       } else if (data.remoteState === 'pairing') {
         message.innerText = TEXT.pairPrompt;
         pairRow.style.display = 'grid';
@@ -935,13 +1039,17 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
       sendAction('mode', {mode: mode});
     }
 
+    function setPrepDelay(delay) {
+      sendAction('delay', {delay: parseInt(delay, 10)});
+    }
+
     // --- State Polling & Render ---
     function updateDashboard() {
       const requestStartedAt = performance.now();
       const headers = remoteToken ? {'X-EasySteel-Token': remoteToken} : {};
-      fetch('/api/state', {headers: headers})
-        .then(r => r.json())
+      requestJson('/api/state', {headers: headers})
         .then(data => {
+          if (connectionFailed) { showRequestError(''); connectionFailed = false; }
           const startBtn = document.getElementById('btn-start');
           const stopBtn = document.getElementById('btn-stop');
           const resetBtn = document.getElementById('btn-reset');
@@ -953,11 +1061,16 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
           }
           updateRemoteUI(data);
 
-          const canControl = data.isController === true;
+          const canControl = data.isController === true && !actionPending;
           startBtn.disabled = !canControl || (data.state !== 'STANDBY' && data.state !== 'FINISHED');
           stopBtn.disabled = !canControl || (data.state !== 'DELAY' && data.state !== 'RUNNING');
           resetBtn.disabled = !canControl || (data.state !== 'DELAY' && data.state !== 'RUNNING' && data.state !== 'FINISHED');
           modeBtns.forEach(b => b.disabled = !canControl || data.state !== 'STANDBY');
+          const prepSelect = document.getElementById('prep-delay-select');
+          if (prepSelect && !prepSelect.matches(':focus')) {
+            prepSelect.value = String(data.prepDelay !== undefined ? data.prepDelay : 0);
+            prepSelect.disabled = !canControl || data.state !== 'STANDBY';
+          }
 
           startBtn.querySelector('.btn-sub').innerText = data.state === 'FINISHED' ? TEXT.nextRun : TEXT.countdownStart;
           stopBtn.querySelector('.btn-sub').innerText = data.state === 'DELAY' ? TEXT.abortCountdown : TEXT.roundStop;
@@ -965,7 +1078,11 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
 
           // State badge
           const stateTag = document.getElementById('state-tag');
-          stateTag.innerText = data.state;
+          if (data.state === 'DELAY' && data.prepInMs > 0) {
+            stateTag.innerText = TEXT.prepare;
+          } else {
+            stateTag.innerText = data.state;
+          }
           stateTag.className = 'state-badge state-' + data.state;
 
           const requestRoundTripMs = performance.now() - requestStartedAt;
@@ -985,12 +1102,29 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
           lastState = data.state;
 
           // Timer display
-          const tVal = (data.timeMs / 1000).toFixed(3);
-          document.getElementById('timer-val').innerText = tVal;
+          if (data.state === 'DELAY' && data.prepInMs > 0) {
+            const prepSecs = Math.ceil(data.prepInMs / 1000);
+            document.getElementById('timer-val').innerText = prepSecs + ' ' + TEXT.secondsUnit;
+          } else {
+            const tVal = (data.timeMs / 1000).toFixed(3);
+            document.getElementById('timer-val').innerText = tVal;
+          }
+
+          // Stage selector visibility
+          const stageSelector = document.getElementById('stage-selector-wrap');
+          if (stageSelector) {
+            stageSelector.style.display = (data.mode === 2) ? 'none' : 'flex';
+          }
 
           // Penalty text
           const pEl = document.getElementById('penalty-val');
-          if (data.state === 'FINISHED' && data.penaltyCount > 0) {
+          if (data.mode === 2) {
+            if (data.state === 'FINISHED' && (!data.hits || data.hits.length === 0)) {
+              pEl.innerText = TEXT.noHits;
+            } else {
+              pEl.innerText = '';
+            }
+          } else if (data.state === 'FINISHED' && data.penaltyCount > 0) {
             pEl.innerText = '+' + data.penaltyCount + ' ' + TEXT.penaltyLabel + ' (+' + (data.penaltyCount * 3.0).toFixed(1) + TEXT.secondsUnit + ')';
           } else {
             pEl.innerText = '';
@@ -1031,7 +1165,7 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
             hits.forEach((h, idx) => {
               const delta = (idx === 0) ? h.splitMs : (h.splitMs - prev);
               prev = h.splitMs;
-              const name = h.target === 0 ? TEXT.stopPlate : (TEXT.targetLabel + ' ' + (h.target + 1));
+              const name = h.target === 0 ? TEXT.stopPlate : (TEXT.targetLabel + ' ' + h.target);
               const spEl = document.getElementById('split-' + h.target);
               if (spEl) spEl.innerText = (h.splitMs / 1000).toFixed(3) + TEXT.secondsUnit;
 
@@ -1051,6 +1185,10 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
           }
         })
         .catch(err => {
+          connectionFailed = true;
+          showRequestError(TEXT.connectionInterrupted);
+          document.querySelectorAll('#btn-start, #btn-stop, #btn-reset, .mode-btn').forEach(button => button.disabled = true);
+          cancelScheduledStartBeep(true);
           pollInterval = 1000;
         })
         .finally(() => {
