@@ -33,3 +33,11 @@ int scoringRulesCalculateMissedTargets(int targetCount, const bool hitMask[MAX_T
   }
   return missedTargets;
 }
+
+unsigned long scoringRulesFinalTime(unsigned long rawTimeMs, int penaltyCount)
+{
+  if (rawTimeMs >= ROUND_TIMEOUT_MS) { return ROUND_TIMEOUT_MS; }
+  const unsigned long penalties = penaltyCount > 0 ? static_cast<unsigned long>(penaltyCount) : 0;
+  const unsigned long remaining = ROUND_TIMEOUT_MS - rawTimeMs;
+  return penalties > remaining / 3000UL ? ROUND_TIMEOUT_MS : rawTimeMs + penalties * 3000UL;
+}

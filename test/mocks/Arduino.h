@@ -37,6 +37,8 @@ inline unsigned long micros() { return g_mockMicros; }
 inline void delay(unsigned long ms) { g_mockMillis += ms; }
 inline void delayMicroseconds(unsigned int us) { g_mockMicros += us; }
 
+inline uint32_t esp_random() { return 12345678; }
+
 inline void pinMode(int pin, int mode) {}
 inline int digitalRead(int pin) { return g_mockPinState; }
 inline void digitalWrite(int pin, int val) {}

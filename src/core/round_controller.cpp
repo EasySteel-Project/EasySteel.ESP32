@@ -14,6 +14,7 @@
 #include "remote_control.h"
 #include "training_result.h"
 #include "offline_buffer.h"
+#include <cstring>
 
 static Button* btnStart = nullptr;
 static Button* btnStop = nullptr;
@@ -24,7 +25,6 @@ static volatile State currentState = STANDBY;
 static unsigned long delayEndTime = 0;
 static unsigned long countdownId = 0;
 static unsigned long falseStartStartedAt = 0;
-static int preparationDelaySeconds = 0;
 static unsigned long randomDelayStartTime = 0;
 static unsigned long lastPrepDispUpdate = 0;
 
@@ -35,7 +35,6 @@ static constexpr unsigned long INPUT_COOLDOWN_MS = 300;
 // --- Auto-Power-Off / Screensaver Tracking ---
 static unsigned long lastActivityTime = 0;
 static bool screensaverActive = false;
-static int screensaverTimeoutMinutes = 5;
 
 // --- Timing and Scoring variables ---
 static unsigned long startTime = 0;                         // Round start timestamp (after delay beep)
@@ -51,6 +50,7 @@ static bool currentRoundIsSoloTraining = false;             // Captured when a r
 static bool confirmationFailed = false;
 static char currentStageName[32] = "";                      // Current stage name
 static char currentContextId[48] = "";                      // Opaque match context echoed with confirmed results
+static bool matchSessionActive = false;                     // True when RangeControl is connected or match session is in progress
 
 // --- Button press state-tracking for Long-Press detection ---
 
@@ -73,12 +73,35 @@ struct HitRecord
 };
 static HitRecord recordedHits[MAX_RECORDED_HITS];
 static int recordedHitCount = 0;
+static bool acceptedHits[MAX_TARGETS] = {};
 
 // --- Shared Helpers ---
 
+static bool isMatchRound()
+{
+  if (currentRoundIsSoloTraining)
+  {
+    return false;
+  }
+  return networkIsServerConnected() || (currentContextId[0] != '\0') || matchSessionActive;
+}
+
+bool roundControllerIsMatchActive()
+{
+  return isMatchRound();
+}
+
+void roundControllerClearMatchSession()
+{
+  matchSessionActive = false;
+  currentContextId[0] = '\0';
+  currentStageName[0] = '\0';
+}
+
 static void renderStandbyScreen()
 {
-  if (!offlineBufferCanAccept())
+  const bool matchActive = isMatchRound();
+  if (matchActive && !offlineBufferCanAccept())
   {
     char pending[24];
     snprintf(pending, sizeof(pending), STR_OUTBOX_PENDING_FORMAT,
@@ -93,7 +116,7 @@ static void renderStandbyScreen()
     return;
   }
   char pending[24] = {};
-  if (offlineBufferGetCount() > 0)
+  if (matchActive && offlineBufferGetCount() > 0)
   {
     snprintf(pending, sizeof(pending), STR_OUTBOX_PENDING_FORMAT,
       static_cast<unsigned int>(offlineBufferGetCount()),
@@ -120,6 +143,7 @@ static void resetToStandby()
   ledsReset();
   sensorIsrReset();
   recordedHitCount = 0;
+  memset(acceptedHits, 0, sizeof(acceptedHits));
   baseEndTime = 0;
   penaltyCount = 0;
   automaticMissCount = 0;
@@ -175,7 +199,7 @@ static bool allIntermediateTargetsHit()
   int targetCount = menuGetTargetCount();
   for (int i = 1; i < targetCount; i++)
   {
-    if (!sensorIsrWasHit(i))
+    if (!acceptedHits[i])
       return false;
   }
   return true;
@@ -204,7 +228,7 @@ static void updateFinishedDisplay()
   bool hitMask[MAX_TARGETS] = {false};
   for (int i = 0; i < MAX_TARGETS; i++)
   {
-    hitMask[i] = sensorIsrWasHit(i);
+    hitMask[i] = acceptedHits[i];
   }
 
   char timeStr[16];
@@ -254,23 +278,31 @@ static int calculateMissedTargets()
 
   bool hitMask[MAX_TARGETS] = {};
   for (int targetIndex = 0; targetIndex < MAX_TARGETS; targetIndex++)
-    hitMask[targetIndex] = sensorIsrWasHit(targetIndex);
+    hitMask[targetIndex] = acceptedHits[targetIndex];
 
   return scoringRulesCalculateMissedTargets(menuGetTargetCount(), hitMask, menuGetRoundMode());
+}
+
+static void updateResultScore()
+{
+  endTime = scoringRulesFinalTime(baseEndTime, penaltyCount);
+  lastRoundTimeMs = endTime;
+  lastRoundPenaltyCount = penaltyCount;
+  roundResultUpdate(baseEndTime, endTime, automaticMissCount, penaltyCount);
+  if (currentRoundIsSoloTraining)
+  {
+    trainingResultUpdateScore(endTime, automaticMissCount, penaltyCount);
+  }
 }
 
 static void finishRound(unsigned long totalTimeMs, const char *reason, unsigned long currentMillis, int missedTargets)
 {
   sensorIsrDisable();
   currentState = FINISHED;
-  baseEndTime = totalTimeMs;
+  baseEndTime = totalTimeMs > ROUND_TIMEOUT_MS ? ROUND_TIMEOUT_MS : totalTimeMs;
   penaltyCount = missedTargets;
   automaticMissCount = missedTargets;
-  unsigned long calcTime = baseEndTime + (unsigned long)penaltyCount * 3000;
-  if (calcTime > ROUND_TIMEOUT_MS) calcTime = ROUND_TIMEOUT_MS;
-  endTime = calcTime;
-  lastRoundTimeMs = endTime;
-  lastRoundPenaltyCount = penaltyCount;
+  updateResultScore();
   roundResultPrepare(baseEndTime, endTime, automaticMissCount, penaltyCount);
 
   bool trainingHitMask[MAX_TARGETS] = {};
@@ -278,7 +310,7 @@ static void finishRound(unsigned long totalTimeMs, const char *reason, unsigned 
   unsigned long trainingSplitTimes[MAX_RECORDED_HITS] = {};
   for (int targetIndex = 0; targetIndex < MAX_TARGETS; targetIndex++)
   {
-    trainingHitMask[targetIndex] = sensorIsrWasHit(targetIndex);
+    trainingHitMask[targetIndex] = acceptedHits[targetIndex];
   }
   for (int hitIndex = 0; hitIndex < recordedHitCount; hitIndex++)
   {
@@ -334,6 +366,7 @@ static void startRound(unsigned long currentMillis)
   ledRedSet(true);
   sensorIsrReset();
   recordedHitCount = 0;
+  memset(acceptedHits, 0, sizeof(acceptedHits));
   baseEndTime = 0;
   penaltyCount = 0;
   automaticMissCount = 0;
@@ -354,7 +387,7 @@ static void startRound(unsigned long currentMillis)
 
 // --- Hit Processing ---
 
-static void processHits(unsigned long currentMillis)
+static void processHits()
 {
   bool stopPlateHitThisPass = false;
   int i = -1;
@@ -365,9 +398,13 @@ static void processHits(unsigned long currentMillis)
     if (!scoringRulesShouldRecordTarget(i, menuGetTargetCount(), menuGetRoundMode()))
       continue;
 
-    ledTargetSet(i, true);
-
     unsigned long splitTime = hitTime - startTime;
+    if (splitTime > ROUND_TIMEOUT_MS)
+    {
+      break;
+    }
+    acceptedHits[i] = true;
+    ledTargetSet(i, true);
     networkSendEvent("hit", i, splitTime);
 
     if (recordedHitCount < MAX_RECORDED_HITS)
@@ -394,6 +431,11 @@ static void processHits(unsigned long currentMillis)
     }
     Serial.print(splitTime);
     Serial.println(" ms");
+    if (menuGetRoundMode() == 2 ||
+        (i == 0 && (!menuGetRequireAllTargets() || allIntermediateTargetsHit())))
+    {
+      break;
+    }
   }
 }
 
@@ -409,7 +451,7 @@ static bool storeOfficialResult(const RoundResult& result)
 
 static bool submitFinishedResult()
 {
-  if (currentRoundIsSoloTraining)
+  if (!isMatchRound())
   {
     roundResultDiscard();
     return true;
@@ -454,16 +496,16 @@ static void handleStandbyInput(unsigned long currentMillis, bool startPressed)
     currentRoundIsSoloTraining =
       remoteControlGetState() == RemoteControlState::Paired &&
       !remoteControlIsPcConnected();
-    if (!currentRoundIsSoloTraining && !offlineBufferCanAccept())
+    if (isMatchRound() && !offlineBufferCanAccept())
     {
       renderStandbyScreen();
       return;
     }
     networkSendEvent("start_pressed", -1, 0);
     unsigned long randomDelayMs = esp_random() % (START_DELAY_MAX_MS - START_DELAY_MIN_MS) + START_DELAY_MIN_MS;
-    unsigned long prepDelayMs = static_cast<unsigned long>(preparationDelaySeconds) * 1000UL;
+    unsigned long prepDelayMs = static_cast<unsigned long>(menuGetPreparationDelay()) * 1000UL;
     countdownId = roundStateNextCountdownId(countdownId);
-    if (preparationDelaySeconds > 0)
+    if (menuGetPreparationDelay() > 0)
     {
       randomDelayStartTime = currentMillis + prepDelayMs;
       delayEndTime = randomDelayStartTime + randomDelayMs;
@@ -487,10 +529,10 @@ static void handleStandbyInput(unsigned long currentMillis, bool startPressed)
     sensorIsrEnable(true);
     sensorIsrSetRunning(true);
     currentState = DELAY;
-    if (preparationDelaySeconds > 0)
+    if (menuGetPreparationDelay() > 0)
     {
       char prepStr[24];
-      snprintf(prepStr, sizeof(prepStr), STR_PREP_COUNTDOWN_FORMAT, preparationDelaySeconds);
+      snprintf(prepStr, sizeof(prepStr), STR_PREP_COUNTDOWN_FORMAT, menuGetPreparationDelay());
       displayUpdate(STR_PREPARE, prepStr);
     }
     else
@@ -517,13 +559,9 @@ void roundControllerInit(HwButtons& buttons)
   int targetCount = storageLoadTargetCount();
   menuSetTargetCount(targetCount);
 
-  bool requireAll = storageLoadRequireAllTargets();
-  menuSetRequireAllTargets(requireAll);
-
-  screensaverTimeoutMinutes = storageLoadScreensaverTimeout();
-
-  preparationDelaySeconds = storageLoadPreparationDelay();
-  menuSetPreparationDelay(preparationDelaySeconds);
+  menuSetRoundMode(storageLoadRoundMode());
+  menuSetScreensaverTimeout(storageLoadScreensaverTimeout());
+  menuSetPreparationDelay(storageLoadPreparationDelay());
 
   int lang = storageLoadLanguage();
   menuSetLanguage(lang == 1 ? Language::EN : Language::DE);
@@ -534,16 +572,21 @@ void roundControllerInit(HwButtons& buttons)
   }
 
   lastActivityTime = millis();
+  inputCooldownUntil = 0;
+  lastRoundTimeMs = 0;
+  lastRoundPenaltyCount = 0;
+  roundControllerClearMatchSession();
+  resetToStandby();
 }
 
 int roundControllerGetScreensaverTimeout()
 {
-  return screensaverTimeoutMinutes;
+  return menuGetScreensaverTimeout();
 }
 
 void roundControllerSetScreensaverTimeout(int minutes)
 {
-  screensaverTimeoutMinutes = minutes;
+  menuSetScreensaverTimeout(minutes);
 }
 
 int roundControllerGetTargetCount()
@@ -568,10 +611,11 @@ const char *roundControllerGetContextId()
 
 void roundControllerSetMatchInfo(const char *contextId, const char *stage)
 {
-  if (contextId && stage)
+  if (contextId && stage && (contextId[0] != '\0' || stage[0] != '\0'))
   {
     snprintf(currentContextId, sizeof(currentContextId), "%s", contextId);
     snprintf(currentStageName, sizeof(currentStageName), "%s", stage);
+    matchSessionActive = true;
   }
   else
   {
@@ -719,8 +763,8 @@ void roundControllerTick(unsigned long currentMillis)
   switch (currentState)
   {
   case STANDBY:
-    if (offlineBufferGetCount() == 0 && !offlineBufferHasStorageError() &&
-        screensaverTimeoutMinutes > 0 && currentMillis - lastActivityTime >= (unsigned long)screensaverTimeoutMinutes * 60000UL)
+    if ((!isMatchRound() || (offlineBufferGetCount() == 0 && !offlineBufferHasStorageError())) &&
+        menuGetScreensaverTimeout() > 0 && currentMillis - lastActivityTime >= (unsigned long)menuGetScreensaverTimeout() * 60000UL)
     {
       screensaverActive = true;
       displayScreensaverTick(currentMillis, networkGetDeviceName().c_str(), networkIsServerConnected());
@@ -733,6 +777,14 @@ void roundControllerTick(unsigned long currentMillis)
       static unsigned long lastStandbyRefreshMs = 0;
       static bool lastServerState = false;
       bool currentServerState = networkIsServerConnected();
+      if (currentServerState)
+      {
+        matchSessionActive = true;
+      }
+      else if (offlineBufferGetCount() == 0 && currentContextId[0] == '\0')
+      {
+        matchSessionActive = false;
+      }
       if (currentServerState != lastServerState || currentMillis - lastStandbyRefreshMs >= 2000)
       {
         lastServerState = currentServerState;
@@ -820,7 +872,7 @@ void roundControllerTick(unsigned long currentMillis)
 
   case RUNNING:
     lastActivityTime = currentMillis;
-    processHits(currentMillis);
+    processHits();
 
     if (sensorIsrTakeDroppedHitCount() > 0)
     {
@@ -863,7 +915,7 @@ void roundControllerTick(unsigned long currentMillis)
       }
       for (int i = 0; i < MAX_TARGETS; i++)
       {
-        if (sensorIsrWasHit(i))
+        if (acceptedHits[i])
         {
           unsigned long lastStop = getLastStopPlateTime();
           unsigned long elapsed = currentMillis - startTime;
@@ -878,7 +930,7 @@ void roundControllerTick(unsigned long currentMillis)
       bool requireAll = menuGetRequireAllTargets();
       bool finishCondition = requireAll
         ? (allIntermediateTargetsHit() && isStopPlateHitLast())
-        : sensorIsrWasHit(0);
+        : acceptedHits[0];
 
       if (finishCondition)
       {
@@ -925,7 +977,7 @@ void roundControllerTick(unsigned long currentMillis)
       bool hitMask[MAX_TARGETS] = {false};
       for (int i = 0; i < MAX_TARGETS; i++)
       {
-        hitMask[i] = sensorIsrWasHit(i);
+        hitMask[i] = acceptedHits[i];
       }
       displayUpdateRunning(runningTimeStr, progress, hitMask, menuGetTargetCount());
     }
@@ -1039,17 +1091,9 @@ void roundControllerTick(unsigned long currentMillis)
         {
           return;
         }
-        int minPenalty = menuGetRequireAllTargets() ? 0 : calculateMissedTargets();
+        int minPenalty = automaticMissCount;
         penaltyCount = minPenalty;
-        unsigned long calcTime = baseEndTime + (unsigned long)penaltyCount * 3000;
-        if (calcTime > ROUND_TIMEOUT_MS)
-        {
-          calcTime = ROUND_TIMEOUT_MS;
-        }
-        endTime = calcTime;
-        lastRoundTimeMs = endTime;
-        lastRoundPenaltyCount = penaltyCount;
-        roundResultUpdate(baseEndTime, endTime, automaticMissCount, penaltyCount);
+        updateResultScore();
         displayCycleIndex = 0;
         buzzerPlay(BuzzerPattern::DoubleShort, currentMillis);
         updateFinishedDisplay();
@@ -1064,7 +1108,7 @@ void roundControllerTick(unsigned long currentMillis)
       {
         return;
       }
-      int minPenalty = menuGetRequireAllTargets() ? 0 : calculateMissedTargets();
+      int minPenalty = automaticMissCount;
       penaltyCount++;
       if (penaltyCount > 10)
       {
@@ -1074,15 +1118,7 @@ void roundControllerTick(unsigned long currentMillis)
       {
         penaltyCount = minPenalty;
       }
-      unsigned long calcTime = baseEndTime + (unsigned long)penaltyCount * 3000;
-      if (calcTime > ROUND_TIMEOUT_MS)
-      {
-        calcTime = ROUND_TIMEOUT_MS;
-      }
-      endTime = calcTime;
-      lastRoundTimeMs = endTime;
-      lastRoundPenaltyCount = penaltyCount;
-      roundResultUpdate(baseEndTime, endTime, automaticMissCount, penaltyCount);
+      updateResultScore();
       displayCycleIndex = 0;
 
       buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
@@ -1090,10 +1126,7 @@ void roundControllerTick(unsigned long currentMillis)
     }
 
 
-    if (screensaverTimeoutMinutes > 0 && currentMillis - lastActivityTime >= (unsigned long)screensaverTimeoutMinutes * 60000UL)
-    {
-      resetToStandby();
-    }
+    // Keep pending results visible until physical confirmation or discard.
     break;
 
   case MENU:
@@ -1166,7 +1199,7 @@ unsigned long roundControllerGetStartDelayRemainingMs(unsigned long currentMilli
 
 int roundControllerGetPreparationDelay()
 {
-  return preparationDelaySeconds;
+  return menuGetPreparationDelay();
 }
 
 bool roundControllerSetPreparationDelay(int seconds)
@@ -1175,7 +1208,6 @@ bool roundControllerSetPreparationDelay(int seconds)
   {
     return false;
   }
-  preparationDelaySeconds = seconds;
   menuSetPreparationDelay(seconds);
   storageSavePreparationDelay(seconds);
   return true;
@@ -1209,7 +1241,7 @@ void roundControllerGetHitMask(bool* outMask, int maxTargets)
   int limit = maxTargets < MAX_TARGETS ? maxTargets : MAX_TARGETS;
   for (int i = 0; i < limit; i++)
   {
-    outMask[i] = sensorIsrWasHit(i);
+    outMask[i] = acceptedHits[i];
   }
 }
 

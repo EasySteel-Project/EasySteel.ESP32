@@ -23,9 +23,6 @@ void menuSetTargetCount(int count);
 /// Get whether all targets must be hit to stop the clock (false = Wettkampf/Strict, true = Alle Ziele/Training).
 bool menuGetRequireAllTargets();
 
-/// Set whether all targets must be hit to stop the clock.
-void menuSetRequireAllTargets(bool requireAll);
-
 /// Get the active round mode: 0=Wettkampf, 1=Alle Ziele, 2=Reaktions-Drill.
 int menuGetRoundMode();
 

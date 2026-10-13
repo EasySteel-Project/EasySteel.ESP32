@@ -15,8 +15,6 @@ void storageClearDevice();
 // --- Round Settings ---
 int storageLoadTargetCount();
 void storageSaveTargetCount(int count);
-bool storageLoadRequireAllTargets();
-void storageSaveRequireAllTargets(bool requireAll);
 int storageLoadRoundMode();
 void storageSaveRoundMode(int mode);
 int storageLoadScreensaverTimeout();
@@ -25,3 +23,6 @@ int storageLoadPreparationDelay();
 void storageSavePreparationDelay(int seconds);
 int storageLoadLanguage();
 void storageSaveLanguage(int language);
+
+/// Load or create the stable device secret. Failure must disable network administration.
+bool storageLoadDevicePassword(String& password, uint32_t (*randomWord)());

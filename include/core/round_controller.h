@@ -35,6 +35,12 @@ const char *roundControllerGetContextId();
 /// Set or clear display-only match context while the controller is idle.
 void roundControllerSetMatchInfo(const char *contextId, const char *stage);
 
+/// Clear active match session and reset context.
+void roundControllerClearMatchSession();
+
+/// Returns true if an official match session is active (requiring outbox buffering).
+bool roundControllerIsMatchActive();
+
 /// Get the last completed round time in milliseconds.
 unsigned long roundControllerGetLastRoundTimeMs();
 

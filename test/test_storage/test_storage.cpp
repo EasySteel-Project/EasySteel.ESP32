@@ -60,14 +60,15 @@ void test_storage_target_count(void) {
     TEST_ASSERT_EQUAL(4, storageLoadTargetCount());
 }
 
-void test_storage_require_all_targets(void) {
-    TEST_ASSERT_FALSE(storageLoadRequireAllTargets()); // Default false (Wettkampf)
-
-    storageSaveRequireAllTargets(true);
-    TEST_ASSERT_TRUE(storageLoadRequireAllTargets());
-
-    storageSaveRequireAllTargets(false);
-    TEST_ASSERT_FALSE(storageLoadRequireAllTargets());
+void test_storage_legacy_round_mode_migrates_without_overriding_reaction_drill()
+{
+    Preferences legacy;
+    legacy.begin("easysteel");
+    legacy.putBool("require_all", true);
+    legacy.end();
+    TEST_ASSERT_EQUAL(1, storageLoadRoundMode());
+    storageSaveRoundMode(2);
+    TEST_ASSERT_EQUAL(2, storageLoadRoundMode());
 }
 
 void test_storage_screensaver_timeout(void) {
@@ -96,11 +97,9 @@ void test_storage_round_mode(void) {
 
     storageSaveRoundMode(1); // Alle Ziele
     TEST_ASSERT_EQUAL(1, storageLoadRoundMode());
-    TEST_ASSERT_TRUE(storageLoadRequireAllTargets());
 
     storageSaveRoundMode(2); // Reaktions-Drill
     TEST_ASSERT_EQUAL(2, storageLoadRoundMode());
-    TEST_ASSERT_FALSE(storageLoadRequireAllTargets());
 }
 
 void test_storage_preparation_delay(void) {
@@ -122,14 +121,49 @@ void test_storage_preparation_delay(void) {
     TEST_ASSERT_EQUAL(30, storageLoadPreparationDelay());
 }
 
+static uint32_t passwordRandom() { return 0x1234abcd; }
+
+void test_device_secret_is_persisted_and_survives_configuration_reset()
+{
+    String password;
+    TEST_ASSERT_TRUE(storageLoadDevicePassword(password, passwordRandom));
+    TEST_ASSERT_EQUAL_STRING("1234abcd1234abcd", password.c_str());
+    storageClearDevice();
+    storageClearWiFi();
+    String loaded;
+    TEST_ASSERT_TRUE(storageLoadDevicePassword(loaded, nullptr));
+    TEST_ASSERT_EQUAL_STRING(password.c_str(), loaded.c_str());
+}
+
+void test_device_secret_storage_failure_never_returns_a_temporary_password()
+{
+    String password("stale");
+    Preferences::failOpen = true;
+    TEST_ASSERT_FALSE(storageLoadDevicePassword(password, passwordRandom));
+    TEST_ASSERT_EQUAL(0, password.length());
+    Preferences::failOpen = false;
+    Preferences::failWrite = true;
+    TEST_ASSERT_FALSE(storageLoadDevicePassword(password, passwordRandom));
+    TEST_ASSERT_EQUAL(0, password.length());
+    Preferences::failWrite = false;
+    Preferences corrupt;
+    corrupt.begin("security");
+    corrupt.putString("password", "not-a-valid-pass!");
+    corrupt.end();
+    TEST_ASSERT_FALSE(storageLoadDevicePassword(password, passwordRandom));
+    TEST_ASSERT_EQUAL(0, password.length());
+}
+
 int main(int argc, char **argv) {
     UNITY_BEGIN();
+    RUN_TEST(test_device_secret_is_persisted_and_survives_configuration_reset);
+    RUN_TEST(test_device_secret_storage_failure_never_returns_a_temporary_password);
     RUN_TEST(test_storage_wifi_save_and_load);
     RUN_TEST(test_storage_wifi_clear);
     RUN_TEST(test_storage_device_fallback_name);
     RUN_TEST(test_storage_device_save_and_load);
     RUN_TEST(test_storage_target_count);
-    RUN_TEST(test_storage_require_all_targets);
+    RUN_TEST(test_storage_legacy_round_mode_migrates_without_overriding_reaction_drill);
     RUN_TEST(test_storage_round_mode);
     RUN_TEST(test_storage_screensaver_timeout);
     RUN_TEST(test_storage_language);

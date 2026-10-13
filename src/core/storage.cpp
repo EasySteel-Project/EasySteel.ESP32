@@ -88,28 +88,6 @@ void storageSaveTargetCount(int count)
   prefs.end();
 }
 
-bool storageLoadRequireAllTargets()
-{
-  prefs.begin("easysteel", true);
-  int mode = prefs.getInt("game_mode", -1);
-  if (mode >= 0)
-  {
-    prefs.end();
-    return mode == 1;
-  }
-  bool requireAll = prefs.getBool("require_all", false);
-  prefs.end();
-  return requireAll;
-}
-
-void storageSaveRequireAllTargets(bool requireAll)
-{
-  prefs.begin("easysteel", false);
-  prefs.putBool("require_all", requireAll);
-  prefs.putInt("game_mode", requireAll ? 1 : 0);
-  prefs.end();
-}
-
 int storageLoadRoundMode()
 {
   prefs.begin("easysteel", true);
@@ -187,4 +165,32 @@ void storageSaveLanguage(int language)
   prefs.begin("easysteel", false);
   prefs.putInt("lang", language);
   prefs.end();
+}
+
+bool storageLoadDevicePassword(String& password, uint32_t (*randomWord)())
+{
+  password = "";
+  if (!prefs.begin("security", false)) { return false; }
+  String stored = prefs.getString("password", "");
+  if (stored.length() == 0 && randomWord)
+  {
+    char generated[17];
+    snprintf(generated, sizeof(generated), "%08lx%08lx",
+      static_cast<unsigned long>(randomWord()), static_cast<unsigned long>(randomWord()));
+    if (prefs.putString("password", generated) != 16)
+    {
+      prefs.end();
+      return false;
+    }
+    stored = prefs.getString("password", "");
+  }
+  prefs.end();
+  if (stored.length() != 16) { return false; }
+  for (size_t index = 0; index < stored.length(); index++)
+  {
+    const char value = stored[index];
+    if (!((value >= '0' && value <= '9') || (value >= 'a' && value <= 'f'))) { return false; }
+  }
+  password = stored;
+  return true;
 }

@@ -8,6 +8,7 @@
 #include "watchdog.h"
 
 #include <WiFi.h>
+#include <esp_system.h>
 #include <esp_wps.h>
 #include <DNSServer.h>
 
@@ -46,14 +47,15 @@ static void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info)
   }
 }
 
-void wifiManagerInit(String& chipId, String& apPassword)
+bool wifiManagerInit(String& chipId, String& apPassword)
 {
   WiFi.onEvent(onWiFiEvent);
+  // Enable the radio entropy source before generating a persistent device secret.
+  WiFi.mode(WIFI_STA);
   String mac = WiFi.macAddress();
   mac.replace(":", "");
   chipId = "EasySteel_" + mac.substring(8);
-  mac.toLowerCase();
-  apPassword = "es_" + mac.substring(mac.length() - 6);
+  return storageLoadDevicePassword(apPassword, esp_random);
 }
 
 void wifiManagerStartAP(const String& chipId, const String& apPassword)
@@ -70,13 +72,11 @@ void wifiManagerStartAP(const String& chipId, const String& apPassword)
 
   Serial.print("AP started: ");
   Serial.println(apName);
-  Serial.print("AP password: ");
-  Serial.println(apPassword);
   Serial.print("IP: ");
   Serial.println(WiFi.softAPIP());
 
   char line2[32];
-  snprintf(line2, sizeof(line2), STR_WIFI_PASSWORD_FORMAT, apPassword.c_str());
+  snprintf(line2, sizeof(line2), "%s", apPassword.c_str());
   displayUpdate(WiFi.softAPIP().toString().c_str(), line2);
 }
 
@@ -245,7 +245,7 @@ void wifiManagerTick(
       }
       else
       {
-        snprintf(line2, sizeof(line2), STR_WIFI_PASSWORD_FORMAT, apPassword.c_str());
+        snprintf(line2, sizeof(line2), "%s", apPassword.c_str());
       }
       displayUpdate(line1, line2);
     }

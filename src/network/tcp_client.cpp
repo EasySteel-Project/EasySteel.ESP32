@@ -3,6 +3,7 @@
 #include "tcp_outgoing_queue.h"
 #include "tcp_protocol.h"
 #include "tcp_line_framer.h"
+#include "tcp_receive_budget.h"
 #include "tcp_connect_attempt.h"
 #include "round_controller.h"
 #include <WiFi.h>
@@ -185,9 +186,8 @@ static void receiveServerMessages(
   const String& chipId,
   const String& deviceName)
 {
-  while (tcpClient.available() > 0)
-  {
-    const char value = static_cast<char>(tcpClient.read());
+  tcpReceiveBudget(tcpClient, [&](char value) {
+
     const char *json = nullptr;
     size_t length = 0;
     const TcpLineFrameResult result = incomingFramer.push(value, json, length);
@@ -199,7 +199,7 @@ static void receiveServerMessages(
     {
       Serial.println("[TCP] Oversized server frame discarded");
     }
-  }
+  });
 }
 
 static void queueOldestResult(const String& chipId, const String& deviceName)

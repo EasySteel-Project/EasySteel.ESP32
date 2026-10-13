@@ -94,9 +94,9 @@ The result remains strictly on the device for inspection by the Range Officer:
 - Black long: Discard the result without scoring and emit a `reset` event.
 - In Reaction Drill mode, Green confirms the previous result and immediately arms the next attempt.
 
-The displayed result time (including penalties) is capped at 30.0 seconds. If the configured screensaver timeout expires while in `FINISHED`, the unconfirmed result is discarded and the timer transitions to `STANDBY`.
+The displayed result time (including penalties) is capped at 30.0 seconds. An unconfirmed result remains visible in `FINISHED` until physical confirmation or discard; the screensaver only applies in `STANDBY`.
 
-For a round started while a Solo Training phone is paired, the ESP32 publishes a stable volatile training result ID with raw/final time, mode, misses, hit mask, and chronological splits. The phone stores each ID exactly once in LocalStorage. Mobile Start begins the next run, and mobile Reset returns to `STANDBY`; neither action submits the pending result to the official result outbox.
+For a round started while a Solo Training phone is paired, the ESP32 publishes a stable volatile training result ID with raw/final time, mode, misses, hit mask, and chronological splits. The phone stores one entry per ID in LocalStorage. Physical penalty corrections update that entry in place, preserving its original timestamp and selected stage. An explicitly deleted entry is not restored by polling. Mobile Start begins the next run, and mobile Reset returns to `STANDBY`; neither action submits the pending result to the official result outbox.
 
 ## 4. Round Modes
 
@@ -106,7 +106,7 @@ For a round started while a Solo Training phone is paired, the ESP32 publishes a
 | All Targets (*Alle Ziele*) | All intermediate targets hit and Stop Plate hit last | No automated miss penalty since all targets are required to stop the timer |
 | Reaction Drill (*Reaktions-Drill*) | First hit on any connected sensor | Reaction time to first hit, zero misses |
 
-Sensor index `0` is always the Stop Plate. With a target count of `5`, indices `1` through `4` are intermediate plates. Hits on unconfigured targets are ignored outside Reaction Drill mode.
+Sensor index `0` is always the Stop Plate. With a target count of `5`, indices `1` through `4` are intermediate plates. Hits on unconfigured targets are ignored outside Reaction Drill mode. The controller scores only chronologically consumed hits up to the first valid finishing hit, excluding queued later hits. Hits after the 30-second limit are excluded; raw and final times remain bounded.
 
 ## 5. Hit Detection & ISR Architecture
 
@@ -142,7 +142,7 @@ The dashboard exposes Start in `STANDBY` and `FINISHED`, Stop in `DELAY` and `RU
 
 ### Transmission & Queue Reliability
 
-- Live events use a bounded static outgoing queue (16 messages) and are discarded if disconnected.
+- Live events use a bounded static outgoing queue (16 messages) and are discarded if disconnected. TCP receive processing consumes at most 512 bytes per tick, preserving partial frames for the next tick. Protocol JSON parsing and serialization share an 8 KiB fixed arena on the main loop; exhaustion fails the operation without falling back to heap allocation.
 - Confirmed results use a 20-entry RAM working set backed by one versioned, CRC32-checked NVS blob (`es_outbox/snapshot`). All persisted integers have fixed-width little-endian encoding.
 - Physical confirmation is accepted only after the snapshot commit succeeds. Failure keeps the result pending and displays a storage warning; keep the device powered and record the result before servicing storage.
 - Boot restores retained results even without Wi-Fi. A full outbox blocks new official rounds instead of replacing an old result. Solo Training remains independent.
@@ -155,7 +155,8 @@ The dashboard exposes Start in `STANDBY` and `FINISHED`, Stop in `DELAY` and `RU
 
 - The provisioning portal is accessible only on the password-protected SoftAP.
 - Browser OTA is disabled during provisioning.
-- In Station mode, settings and browser OTA require HTTP Basic Authentication (`admin` + device password).
+- In Station mode, settings and browser OTA require HTTP Basic Authentication (`admin` + device password). The password is generated from the ESP32 RNG with the radio enabled and persisted in `security/password`. It is also used for the SoftAP and Arduino OTA. View it on the physical device under Network > Password; hold Reset to return. Wi-Fi and device-setting resets preserve it.
+- Upgrading from MAC-derived credentials generates a new 16-character random hexadecimal password on first boot. The previous password stops working after that boot. If credential storage cannot be opened, committed, or validated, network administration remains disabled; no temporary or predictable fallback password is used.
 - Solo Training control requires physical four-digit PIN release plus a strong volatile session token; the token is accepted from exactly one phone and is never stored in NVS.
 - OTA updates are processed strictly when the round controller is in `STANDBY`.
 - Task Watchdog and sensor interrupts are safely disabled during flash writes and restored on every exit and error path.
@@ -171,7 +172,8 @@ Basic authentication is intended for a trusted range network. Signed binaries ar
 | `easysteel` | `targets` | Configured target plate count |
 | `easysteel` | `require_all` | Compatibility setting for All Targets mode |
 | `easysteel` | `game_mode` | Persistent legacy key for active round mode |
-| `easysteel` | `screensaver` | OLED timeout in minutes |
+| `security` | `password` | Persistent randomly generated device password |
+| `easysteel` | `screensaver` | Standby OLED timeout in minutes |
 
 The key `game_mode` is deliberately retained to preserve stored settings across firmware updates.
 
@@ -198,9 +200,14 @@ Run from the repository root:
 
 ```powershell
 pio test -e native
+node --test test/web_training_history.test.cjs
 pio run -e esp32dev
 pio check -e esp32dev --skip-packages
 ```
+
+The JavaScript history tests require Node.js 18 or later.
+
+The controller integration suite uses the real controller, menu, button, sensor, scoring, and storage code with fake network/display boundaries. It covers queued hits beyond the stop plate, All Targets ordering, result retention and physical discard, failed confirmation, penalty correction, time limits, and boot/menu persistence.
 
 Native test suites verify button debouncing, sensor ISR queueing, chronological ordering, round state transitions, miss calculations, single-consumption results, persistent storage, protocol serialization, live queues, and the result outbox.
 

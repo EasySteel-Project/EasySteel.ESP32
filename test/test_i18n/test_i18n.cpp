@@ -103,6 +103,12 @@ void test_i18n_display_strings_max_length_de(void) {
     TEST_ASSERT_TRUE(strlen(d.titlePrepDelay) <= 21);
     TEST_ASSERT_TRUE(strlen(d.paramPrepDelay) <= 21);
     TEST_ASSERT_TRUE(strlen(d.hintPrepDelay) <= 21);
+    TEST_ASSERT_TRUE(strlen(d.testClearOutbox) <= 21);
+    TEST_ASSERT_TRUE(strlen(d.confirmClearOutboxTitle) <= 21);
+    TEST_ASSERT_TRUE(strlen(d.confirmClearOutboxLine2) <= 21);
+    char clearMsg[32];
+    snprintf(clearMsg, sizeof(clearMsg), d.confirmClearOutboxLine1, 20U);
+    TEST_ASSERT_TRUE(strlen(clearMsg) <= 21);
 }
 
 void test_i18n_display_strings_max_length_en(void) {
@@ -132,6 +138,12 @@ void test_i18n_display_strings_max_length_en(void) {
     TEST_ASSERT_TRUE(strlen(d.titlePrepDelay) <= 21);
     TEST_ASSERT_TRUE(strlen(d.paramPrepDelay) <= 21);
     TEST_ASSERT_TRUE(strlen(d.hintPrepDelay) <= 21);
+    TEST_ASSERT_TRUE(strlen(d.testClearOutbox) <= 21);
+    TEST_ASSERT_TRUE(strlen(d.confirmClearOutboxTitle) <= 21);
+    TEST_ASSERT_TRUE(strlen(d.confirmClearOutboxLine2) <= 21);
+    char clearMsg[32];
+    snprintf(clearMsg, sizeof(clearMsg), d.confirmClearOutboxLine1, 20U);
+    TEST_ASSERT_TRUE(strlen(clearMsg) <= 21);
 }
 
 void test_outbox_messages_fit_the_display(void) {

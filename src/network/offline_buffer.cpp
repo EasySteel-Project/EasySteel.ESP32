@@ -337,3 +337,13 @@ size_t offlineBufferGetCount()
 {
   return backupCount;
 }
+
+bool offlineBufferClear()
+{
+  backupHead = 0;
+  backupTail = 0;
+  backupCount = 0;
+  storageError = false;
+  memset(backupBuffer, 0, sizeof(backupBuffer));
+  return persistSnapshot();
+}

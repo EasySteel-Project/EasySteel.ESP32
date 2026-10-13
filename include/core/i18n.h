@@ -145,6 +145,10 @@ struct DisplayStrings
   const char *sensorLastStop;
   const char *sensorLastTarget;
   const char *stopPlateShort;
+  const char *testClearOutbox;
+  const char *confirmClearOutboxTitle;
+  const char *confirmClearOutboxLine1;
+  const char *confirmClearOutboxLine2;
 
   // --- Network & WiFi ---
   const char *wifiStatus;

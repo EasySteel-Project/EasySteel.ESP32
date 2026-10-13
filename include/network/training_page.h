@@ -785,13 +785,14 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
     }
 
     function recordTrainingResult(result) {
-      if (!result || !result.id || result.timeMs <= 0 || result.id === lastRecordedRoundId) return;
+      if (!result || !result.id || result.timeMs <= 0) return;
       const existingHistory = loadHistory();
-      if (existingHistory.some(item => item.id === result.id)) {
-        lastRecordedRoundId = result.id;
-        localStorage.setItem('es_last_result_id', result.id);
-        return;
-      }
+      const existingIndex = existingHistory.findIndex(item => item.id === result.id);
+      const existing = existingIndex >= 0 ? existingHistory[existingIndex] : null;
+      if (existing && existing.finalTimeMs === result.timeMs &&
+          existing.penaltyCount === result.penaltyCount && existing.missCount === result.missCount) return;
+      // Preserve explicit local deletion when the device still publishes the same run.
+      if (!existing && result.id === lastRecordedRoundId) return;
       const now = new Date();
       const timeStr = now.toLocaleString([], {
         year: 'numeric', month: '2-digit', day: '2-digit',
@@ -801,8 +802,8 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
 
       const run = {
         id: result.id,
-        timestamp: timeStr,
-        stageId: (result.mode === 2) ? '' : selectedStageId,
+        timestamp: existing ? existing.timestamp : timeStr,
+        stageId: existing ? existing.stageId : ((result.mode === 2) ? '' : selectedStageId),
         mode: result.mode,
         modeName: modeNames[result.mode] || TEXT.unknown,
         rawTimeMs: result.rawTimeMs,
@@ -815,7 +816,8 @@ const char TRAINING_PAGE[] PROGMEM = R"rawliteral(
       };
 
       const hist = existingHistory;
-      hist.unshift(run);
+      if (existingIndex >= 0) hist[existingIndex] = run;
+      else hist.unshift(run);
       saveHistory(hist);
       lastRecordedRoundId = result.id;
       localStorage.setItem('es_last_result_id', result.id);

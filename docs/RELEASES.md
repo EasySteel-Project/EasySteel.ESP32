@@ -18,6 +18,7 @@ Firmware releases use Semantic Versioning with `v`-prefixed Git tags, for exampl
 
    ```powershell
    pio test -e native
+   node --test test/web_training_history.test.cjs
    pio run -e esp32dev
    pio check -e esp32dev --skip-packages
    ```

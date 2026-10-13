@@ -9,3 +9,6 @@ bool scoringRulesShouldRecordTarget(int targetIndex, int targetCount, int roundM
 /// Reaction drill (roundMode == 2) requires only one hit and has no missed intermediate targets.
 int scoringRulesCalculateMissedTargets(int targetCount, const bool hitMask[MAX_TARGETS], int roundMode = 0);
 
+
+/// Calculate the capped result time, including three seconds per penalty.
+unsigned long scoringRulesFinalTime(unsigned long rawTimeMs, int penaltyCount);

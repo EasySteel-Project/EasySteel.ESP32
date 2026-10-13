@@ -65,3 +65,6 @@ void networkResetCredentials();
 
 /// Erase all device settings from flash.
 void networkResetSettings();
+
+/// Read the device secret for the physical settings display only.
+const String& networkGetDevicePassword();

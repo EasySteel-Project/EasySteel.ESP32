@@ -124,7 +124,7 @@ Live events use a bounded static queue. The network tick performs at most one no
 
 - The provisioning portal is available only on the password-protected device access point.
 - Browser OTA is disabled during provisioning.
-- Settings and browser OTA in station mode use HTTP Basic authentication: user `admin` and the device password shown during provisioning.
+- Settings and browser OTA in station mode use HTTP Basic authentication: user `admin` and the random device password shown during provisioning or under Network > Password on the physical device. Arduino OTA uses the same password. On the first boot after upgrading from MAC-derived credentials, a new password is generated and retained across Wi-Fi/settings resets.
 - OTA is processed only while the round controller is idle.
 - OTA failure and abort paths restore the watchdog state.
 

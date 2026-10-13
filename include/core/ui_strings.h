@@ -135,6 +135,10 @@
 #define STR_SENSOR_LAST_STOP i18n().sensorLastStop
 #define STR_SENSOR_LAST_TARGET i18n().sensorLastTarget
 #define STR_STOP_PLATE_SHORT i18n().stopPlateShort
+#define STR_TEST_CLEAR_OUTBOX i18n().testClearOutbox
+#define STR_CONFIRM_CLEAR_OUTBOX_TITLE i18n().confirmClearOutboxTitle
+#define STR_CONFIRM_CLEAR_OUTBOX_LINE1 i18n().confirmClearOutboxLine1
+#define STR_CONFIRM_CLEAR_OUTBOX_LINE2 i18n().confirmClearOutboxLine2
 
 // --- Network & WiFi ---
 #define STR_WIFI_STATUS i18n().wifiStatus

@@ -6,3 +6,7 @@ int g_mockPinState = 1; // HIGH
 MockSerial Serial;
 unsigned int g_mockAttachInterruptCalls = 0;
 unsigned int g_mockDetachInterruptCalls = 0;
+
+#include "Preferences.h"
+bool Preferences::failOpen = false;
+bool Preferences::failWrite = false;

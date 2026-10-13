@@ -31,7 +31,12 @@ void networkInit(Button *abortBtn)
     Serial.println("[OUTBOX] Recovery failed; storage preserved and official starts blocked");
   }
   remoteControlInit();
-  wifiManagerInit(chipId, apPassword);
+  if (!wifiManagerInit(chipId, apPassword))
+  {
+    WiFi.mode(WIFI_OFF);
+    Serial.println("[NETWORK] Credential storage failed; administration disabled until restart");
+    return;
+  }
 
   storageLoadDevice(deviceName, serverIP, tcpPort, chipId);
 
@@ -63,6 +68,7 @@ void networkInit(Button *abortBtn)
 
 bool networkReconnectWiFi(Button *abortBtn)
 {
+  if (apPassword.length() == 0) { return false; }
   String ssid, pass;
   if (!storageLoadWiFi(ssid, pass))
   {
@@ -82,6 +88,7 @@ bool networkReconnectWiFi(Button *abortBtn)
 
 void networkStartAPMode()
 {
+  if (apPassword.length() == 0) { return; }
   provisioning = true;
   wifiManagerStartAP(chipId, apPassword);
   webServerInitAP(deviceName, apPassword);
@@ -178,4 +185,9 @@ void networkResetSettings()
 void networkStopProvisioningAndSetManual()
 {
   wifiManagerStopProvisioningAndSetManual(provisioning);
+}
+
+const String& networkGetDevicePassword()
+{
+  return apPassword;
 }

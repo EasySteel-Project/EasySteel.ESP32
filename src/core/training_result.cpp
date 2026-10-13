@@ -75,3 +75,11 @@ bool trainingResultGet(TrainingResult &result)
   result = latestResult;
   return true;
 }
+
+void trainingResultUpdateScore(unsigned long timeMs, int missCount, int penaltyCount)
+{
+  if (!resultAvailable) { return; }
+  latestResult.timeMs = timeMs;
+  latestResult.missCount = missCount;
+  latestResult.penaltyCount = penaltyCount;
+}

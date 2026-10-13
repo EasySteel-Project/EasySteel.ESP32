@@ -41,3 +41,6 @@ void trainingResultPublish(
 
 /// Copy the latest completed run. Returns false until a run has finished.
 bool trainingResultGet(TrainingResult &result);
+
+/// Correct the latest run without changing its identity or chronological hits.
+void trainingResultUpdateScore(unsigned long timeMs, int missCount, int penaltyCount);

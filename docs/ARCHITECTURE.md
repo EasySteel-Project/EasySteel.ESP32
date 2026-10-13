@@ -31,7 +31,7 @@ The paired phone may select Competition, All Targets, or Drill while in `STANDBY
 
 Physical controls always have priority over a queued phone request. A desktop connection immediately revokes the phone session and blocks new pairing. Desktop disconnection does not restore mobile control; a new physical release is required.
 
-Completed Solo Training runs are exposed with stable result IDs for exactly-once copying to that phone's LocalStorage. These records are non-authoritative training history and never enter the official result outbox.
+Completed Solo Training runs are exposed with stable result IDs for one history entry per run in that phone's LocalStorage. Physical penalty corrections update the same entry while preserving its timestamp and stage. These records are non-authoritative training history and never enter the official result outbox.
 
 ## Asynchronous HTTP ownership
 

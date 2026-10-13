@@ -63,3 +63,6 @@ void offlineBufferMarkAllUnsent();
 
 /// Returns the number of buffered runs currently in memory.
 size_t offlineBufferGetCount();
+
+/// Manually clears all retained runs and commits an empty snapshot to NVS.
+bool offlineBufferClear();

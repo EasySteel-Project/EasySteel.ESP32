@@ -1,5 +1,9 @@
 #include "tcp_protocol.h"
 #include <ArduinoJson.h>
+#include "fixed_json_allocator.h"
+
+// Both protocol operations run sequentially on the main loop.
+static FixedJsonAllocator<8192> protocolJsonMemory;
 #include <cctype>
 #include <cstring>
 
@@ -280,11 +284,8 @@ size_t tcpProtocolSerializeEvent(
     return 0;
   }
 
-  // ArduinoJson 7 deprecates the fixed-capacity alias, but it deliberately avoids heap use here.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  StaticJsonDocument<TCP_EVENT_MAX_BYTES> doc;
-#pragma GCC diagnostic pop
+  protocolJsonMemory.reset();
+  JsonDocument doc(&protocolJsonMemory);
   doc["protocolVersion"] = TCP_PROTOCOL_VERSION;
   doc["deviceId"] = chipId;
   doc["deviceName"] = deviceName;
@@ -362,10 +363,8 @@ bool tcpProtocolParseServerMessage(
     return false;
   }
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  StaticJsonDocument<1024> doc;
-#pragma GCC diagnostic pop
+  protocolJsonMemory.reset();
+  JsonDocument doc(&protocolJsonMemory);
   const DeserializationError error = deserializeJson(doc, json, length);
   if (error != DeserializationError::Ok || doc.overflowed() || !doc.is<JsonObject>())
   {

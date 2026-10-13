@@ -14,7 +14,10 @@ private:
     }
 
 public:
+    static bool failOpen;
+    static bool failWrite;
     bool begin(const char* name, bool readOnly = false) {
+        if (failOpen) { return false; }
         currentNs = name ? name : "";
         return true;
     }
@@ -32,6 +35,7 @@ public:
     }
 
     size_t putString(const char* key, const String& value) {
+        if (failWrite) { return 0; }
         getStore()[currentNs][key] = value.c_str();
         return value.length();
     }
@@ -81,6 +85,8 @@ public:
 
     static void resetAllStores() {
         getStore().clear();
+        failOpen = false;
+        failWrite = false;
     }
 };
 

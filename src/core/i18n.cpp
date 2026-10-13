@@ -139,6 +139,10 @@ static const DisplayStrings STRINGS_DISPLAY_DE = {
   .sensorLastStop       = "Letzter: Stop plate",
   .sensorLastTarget     = "Letzter: ZIEL %d",
   .stopPlateShort       = "ST",
+  .testClearOutbox      = "Puffer leeren",
+  .confirmClearOutboxTitle = "PUFFER LEEREN",
+  .confirmClearOutboxLine1 = "%u Laeufe im Speicher",
+  .confirmClearOutboxLine2 = "Wirklich leeren?",
 
   // Network & WiFi
   .wifiStatus           = "Status",
@@ -335,6 +339,10 @@ static const DisplayStrings STRINGS_DISPLAY_EN = {
   .sensorLastStop       = "Last: Stop plate",
   .sensorLastTarget     = "Last: TARGET %d",
   .stopPlateShort       = "ST",
+  .testClearOutbox      = "Clear Outbox",
+  .confirmClearOutboxTitle = "CLEAR OUTBOX",
+  .confirmClearOutboxLine1 = "%u runs in memory",
+  .confirmClearOutboxLine2 = "Really clear?",
 
   // Network & WiFi
   .wifiStatus           = "Status",

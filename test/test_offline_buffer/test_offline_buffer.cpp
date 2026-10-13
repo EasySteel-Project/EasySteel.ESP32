@@ -405,6 +405,25 @@ void test_ring_wrap_restores_fifo_order(void)
     }
 }
 
+void test_buffer_clear_empties_and_persists_empty_snapshot(void)
+{
+    pushRun("run-1", 1000, 1000, 0, 0);
+    pushRun("run-2", 2000, 2000, 0, 0);
+    pushRun("run-3", 3000, 3000, 0, 0);
+    TEST_ASSERT_EQUAL_UINT32(3, offlineBufferGetCount());
+
+    TEST_ASSERT_TRUE(offlineBufferClear());
+    TEST_ASSERT_EQUAL_UINT32(0, offlineBufferGetCount());
+    TEST_ASSERT_TRUE(offlineBufferCanAccept());
+    TEST_ASSERT_FALSE(offlineBufferHasStorageError());
+
+    // Verify persisted state across re-init
+    TEST_ASSERT_TRUE(offlineBufferInit());
+    TEST_ASSERT_EQUAL_UINT32(0, offlineBufferGetCount());
+    BufferedRunData run = {};
+    TEST_ASSERT_FALSE(offlineBufferPeekOldestUnsent(run));
+}
+
 int main(int argc, char **argv)
 {
     UNITY_BEGIN();
@@ -428,5 +447,6 @@ int main(int argc, char **argv)
     RUN_TEST(test_corrupt_or_incompatible_storage_is_not_silently_reset);
     RUN_TEST(test_read_and_open_failures_do_not_create_an_empty_outbox);
     RUN_TEST(test_ring_wrap_restores_fifo_order);
+    RUN_TEST(test_buffer_clear_empties_and_persists_empty_snapshot);
     return UNITY_END();
 }

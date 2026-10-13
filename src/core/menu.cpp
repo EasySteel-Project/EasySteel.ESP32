@@ -10,6 +10,7 @@
 #include "sensor_isr.h"
 #include "remote_control.h"
 #include "training_result.h"
+#include "offline_buffer.h"
 #include <WiFi.h>
 
 static Button* btnStart = nullptr;
@@ -26,11 +27,13 @@ enum MenuState
   MENU_STATE_SCREENSAVER_EDIT,
   MENU_STATE_LANGUAGE_EDIT,
   MENU_STATE_NET_MENU,
+  MENU_STATE_DEVICE_PASSWORD,
   MENU_STATE_REMOTE_PAIRING,
   MENU_STATE_WIFI_RESET_CONFIRM,
   MENU_STATE_TEST_MENU,
   MENU_STATE_TEST_SENSORS,
   MENU_STATE_TEST_LEDS_BUZZER,
+  MENU_STATE_OUTBOX_CLEAR_CONFIRM,
   MENU_STATE_INFO
 };
 
@@ -40,11 +43,10 @@ static MenuState currentState = MENU_STATE_MAIN_CAT;
 // Selection indices
 static int mainCatIndex = 0;       // 0..5
 static int targetSubIndex = 0;     // 0..4
-static int netItemIndex = 0;       // 0..11
-static int testSelectIndex = 0;    // 0..2
+static int netItemIndex = 0;       // 0..12
+static int testSelectIndex = 0;    // 0..3
 
 static int configuredTargetCount = MAX_TARGETS;
-static bool configuredRequireAllTargets = false;
 static int configuredRoundMode = 0;
 static int configuredPreparationDelay = 0;
 static int configuredScreensaverTimeout = 5;
@@ -62,8 +64,8 @@ static bool resetWasHeldLong = false;
 static constexpr unsigned long HOLD_LONG_PRESS_MS = 1000;
 static constexpr int MAIN_CAT_COUNT = 6;
 static constexpr int TARGET_SUB_COUNT = 6;
-static constexpr int NET_ITEM_COUNT = 12;
-static constexpr int TEST_SELECT_COUNT = 3;
+static constexpr int NET_ITEM_COUNT = 13;
+static constexpr int TEST_SELECT_COUNT = 4;
 
 // Keep scheduled tones progressing during the existing idle-menu message pause.
 static void waitForMenuFeedback(unsigned long durationMs)
@@ -77,6 +79,15 @@ static void waitForMenuFeedback(unsigned long durationMs)
   buzzerTick(millis());
 }
 
+
+static void saveSettings()
+{
+  storageSaveTargetCount(configuredTargetCount);
+  storageSaveRoundMode(configuredRoundMode);
+  storageSaveScreensaverTimeout(configuredScreensaverTimeout);
+  storageSavePreparationDelay(configuredPreparationDelay);
+  storageSaveLanguage(static_cast<int>(configuredLanguage));
+}
 
 void menuInit(HwButtons& buttons)
 {
@@ -115,12 +126,6 @@ bool menuGetRequireAllTargets()
   return configuredRoundMode == 1;
 }
 
-void menuSetRequireAllTargets(bool requireAll)
-{
-  configuredRequireAllTargets = requireAll;
-  configuredRoundMode = requireAll ? 1 : 0;
-}
-
 int menuGetRoundMode()
 {
   return configuredRoundMode;
@@ -129,7 +134,6 @@ int menuGetRoundMode()
 void menuSetRoundMode(int mode)
 {
   configuredRoundMode = mode;
-  configuredRequireAllTargets = (mode == 1);
 }
 
 int menuGetPreparationDelay()
@@ -346,6 +350,7 @@ static void menuUpdateDisplay()
       lineAp,
       lineWps,
       lineReset,
+      STR_WEB_PASSWORD,
       STR_BACK
     };
 
@@ -369,9 +374,22 @@ static void menuUpdateDisplay()
     break;
   }
 
+  case MENU_STATE_DEVICE_PASSWORD:
+    displayUpdateConfirmation(STR_WEB_PASSWORD, networkGetDevicePassword().c_str(), "", STR_FOOTER_BACK);
+    break;
+
   case MENU_STATE_WIFI_RESET_CONFIRM:
     displayUpdateConfirmation(STR_CONFIRM_WIFI_TITLE, STR_CONFIRM_WIFI_LINE1, STR_CONFIRM_WIFI_LINE2, STR_FOOTER_CONFIRM);
     break;
+
+  case MENU_STATE_OUTBOX_CLEAR_CONFIRM:
+  {
+    char line1[24];
+    snprintf(line1, sizeof(line1), STR_CONFIRM_CLEAR_OUTBOX_LINE1,
+             static_cast<unsigned int>(offlineBufferGetCount()));
+    displayUpdateConfirmation(STR_CONFIRM_CLEAR_OUTBOX_TITLE, line1, STR_CONFIRM_CLEAR_OUTBOX_LINE2, STR_FOOTER_CONFIRM);
+    break;
+  }
 
   case MENU_STATE_TEST_MENU:
   {
@@ -379,9 +397,13 @@ static void menuUpdateDisplay()
     snprintf(test1, sizeof(test1), "1. %s", STR_TEST_SENSORS);
     char test2[24];
     snprintf(test2, sizeof(test2), "2. %s", STR_TEST_LEDS_BUZZER);
+    char test3[24];
+    snprintf(test3, sizeof(test3), "3. %s (%u)", STR_TEST_CLEAR_OUTBOX,
+             static_cast<unsigned int>(offlineBufferGetCount()));
     const char *testItems[TEST_SELECT_COUNT] = {
       test1,
       test2,
+      test3,
       STR_BACK
     };
     char title[24];
@@ -490,22 +512,20 @@ bool menuTick(unsigned long currentMillis)
       currentState = MENU_STATE_MAIN_CAT;
       displayNeedsUpdate = true;
     }
-    else if (currentState == MENU_STATE_WIFI_RESET_CONFIRM)
+    else if (currentState == MENU_STATE_WIFI_RESET_CONFIRM || currentState == MENU_STATE_DEVICE_PASSWORD)
     {
       currentState = MENU_STATE_NET_MENU;
+      displayNeedsUpdate = true;
+    }
+    else if (currentState == MENU_STATE_OUTBOX_CLEAR_CONFIRM)
+    {
+      currentState = MENU_STATE_TEST_MENU;
       displayNeedsUpdate = true;
     }
     else if (currentState == MENU_STATE_MAIN_CAT)
     {
       // Exit menu and persist all settings
-      storageSaveTargetCount(configuredTargetCount);
-      storageSaveRoundMode(configuredRoundMode);
-      storageSaveRequireAllTargets(configuredRoundMode == 1);
-      storageSaveScreensaverTimeout(configuredScreensaverTimeout);
-      storageSavePreparationDelay(configuredPreparationDelay);
-      storageSaveLanguage((int)configuredLanguage);
-      roundControllerSetScreensaverTimeout(configuredScreensaverTimeout);
-      roundControllerSetPreparationDelay(configuredPreparationDelay);
+      saveSettings();
       buzzerPlay(BuzzerPattern::Confirm, currentMillis);
       menuActive = false;
       networkSendEvent("settings_changed", -1, 0);
@@ -558,14 +578,7 @@ bool menuTick(unsigned long currentMillis)
         case 4: currentState = MENU_STATE_INFO; break;
         case 5:
           // Exit menu and persist all settings
-          storageSaveTargetCount(configuredTargetCount);
-          storageSaveRoundMode(configuredRoundMode);
-          storageSaveRequireAllTargets(configuredRoundMode == 1);
-          storageSaveScreensaverTimeout(configuredScreensaverTimeout);
-          storageSavePreparationDelay(configuredPreparationDelay);
-          storageSaveLanguage((int)configuredLanguage);
-          roundControllerSetScreensaverTimeout(configuredScreensaverTimeout);
-          roundControllerSetPreparationDelay(configuredPreparationDelay);
+          saveSettings();
           buzzerPlay(BuzzerPattern::Confirm, currentMillis);
           menuActive = false;
           networkSendEvent("settings_changed", -1, 0);
@@ -630,21 +643,18 @@ bool menuTick(unsigned long currentMillis)
       if (startPressed)
       {
         configuredRoundMode = (configuredRoundMode + 1) % 3;
-        configuredRequireAllTargets = (configuredRoundMode == 1);
         buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
         displayNeedsUpdate = true;
       }
       if (stopPressed)
       {
         configuredRoundMode = (configuredRoundMode - 1 + 3) % 3;
-        configuredRequireAllTargets = (configuredRoundMode == 1);
         buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
         displayNeedsUpdate = true;
       }
       if (resetShortPress)
       {
         storageSaveRoundMode(configuredRoundMode);
-        storageSaveRequireAllTargets(configuredRoundMode == 1);
         buzzerPlay(BuzzerPattern::Confirm, currentMillis);
         currentState = MENU_STATE_TARGET_MENU;
         displayNeedsUpdate = true;
@@ -801,7 +811,12 @@ bool menuTick(unsigned long currentMillis)
           currentState = MENU_STATE_WIFI_RESET_CONFIRM;
           displayNeedsUpdate = true;
         }
-        else if (netItemIndex == 11) // Zurueck
+        else if (netItemIndex == 11)
+        {
+          currentState = MENU_STATE_DEVICE_PASSWORD;
+          displayNeedsUpdate = true;
+        }
+        else if (netItemIndex == 12) // Back
         {
           buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
           currentState = MENU_STATE_MAIN_CAT;
@@ -880,10 +895,31 @@ bool menuTick(unsigned long currentMillis)
           ledsReset();
           break;
 
-        case 2: // Zurueck
+        case 2: // Puffer leeren
+          currentState = MENU_STATE_OUTBOX_CLEAR_CONFIRM;
+          break;
+
+        case 3: // Zurueck
           currentState = MENU_STATE_MAIN_CAT;
           break;
         }
+        displayNeedsUpdate = true;
+      }
+      break;
+
+    case MENU_STATE_OUTBOX_CLEAR_CONFIRM:
+      if (startPressed) // JA
+      {
+        offlineBufferClear();
+        roundControllerClearMatchSession();
+        buzzerPlay(BuzzerPattern::Confirm, currentMillis);
+        currentState = MENU_STATE_TEST_MENU;
+        displayNeedsUpdate = true;
+      }
+      if (stopPressed || resetShortPress) // NEIN
+      {
+        buzzerPlay(BuzzerPattern::MenuClick, currentMillis);
+        currentState = MENU_STATE_TEST_MENU;
         displayNeedsUpdate = true;
       }
       break;
@@ -961,7 +997,6 @@ bool menuTick(unsigned long currentMillis)
   static int lastNetItem = -1;
   static int lastTestSelect = -1;
   static int lastTargetCount = -1;
-  static bool lastRequireAll = false;
   static int lastRoundMode = -1;
   static int lastScreensaverTimeout = -1;
 
@@ -969,7 +1004,7 @@ bool menuTick(unsigned long currentMillis)
       (currentState == MENU_STATE_MAIN_CAT && mainCatIndex != lastMainCat) ||
       (currentState == MENU_STATE_TARGET_MENU && targetSubIndex != lastTargetSub) ||
       (currentState == MENU_STATE_TARGET_COUNT_EDIT && configuredTargetCount != lastTargetCount) ||
-      (currentState == MENU_STATE_STOP_MODE_EDIT && (configuredRequireAllTargets != lastRequireAll || configuredRoundMode != lastRoundMode)) ||
+      (currentState == MENU_STATE_STOP_MODE_EDIT && (configuredRoundMode != lastRoundMode)) ||
       (currentState == MENU_STATE_SCREENSAVER_EDIT && configuredScreensaverTimeout != lastScreensaverTimeout) ||
       (currentState == MENU_STATE_NET_MENU && netItemIndex != lastNetItem) ||
       (currentState == MENU_STATE_TEST_MENU && testSelectIndex != lastTestSelect))
@@ -978,7 +1013,6 @@ bool menuTick(unsigned long currentMillis)
     lastMainCat = mainCatIndex;
     lastTargetSub = targetSubIndex;
     lastTargetCount = configuredTargetCount;
-    lastRequireAll = configuredRequireAllTargets;
     lastRoundMode = configuredRoundMode;
     lastScreensaverTimeout = configuredScreensaverTimeout;
     lastNetItem = netItemIndex;

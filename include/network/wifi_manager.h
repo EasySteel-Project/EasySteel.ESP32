@@ -2,8 +2,8 @@
 
 #include <Arduino.h>
 
-/// Initialize WiFi event handlers and chip ID.
-void wifiManagerInit(String& chipId, String& apPassword);
+/// Initialize WiFi, chip ID, and a persistent random password. False disables administration.
+bool wifiManagerInit(String& chipId, String& apPassword);
 
 /// Start Access Point (AP) mode provisioning.
 void wifiManagerStartAP(const String& chipId, const String& apPassword);
